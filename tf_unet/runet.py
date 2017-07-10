@@ -56,7 +56,7 @@ def block_rnn(x):
         time_major=False
     )
     x = tf.reshape(x, shape=[-1, nx, ny, channels])
-    return x
+    return x, rnnCell.variables[0], rnnCell.variables[1]
 
 
 def create_r_conv_net(x, keep_prob, channels, n_class, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
@@ -114,7 +114,9 @@ def create_r_conv_net(x, keep_prob, channels, n_class, layers=3, features_root=1
         conv1 = conv2d(in_node, w1, keep_prob)
         tmp_h_conv = tf.nn.relu(conv1 + b1)
         conv2 = conv2d(tmp_h_conv, w2, keep_prob)
-        dw_h_convs[layer] = block_rnn(tf.nn.relu(conv2 + b2))
+        dw_h_convs[layer], rnnweights, rnnbias = block_rnn(tf.nn.relu(conv2 + b2))
+        #weights.append(rnnweights)
+        #weights.append(rnnbias)
 
         weights.append((w1, w2))
         biases.append((b1, b2))
@@ -150,7 +152,9 @@ def create_r_conv_net(x, keep_prob, channels, n_class, layers=3, features_root=1
         conv1 = conv2d(h_deconv_concat, w1, keep_prob)
         h_conv = tf.nn.relu(conv1 + b1)
         conv2 = conv2d(h_conv, w2, keep_prob)
-        in_node = block_rnn(tf.nn.relu(conv2 + b2))
+        in_node, rnnweights, rnnbias  = block_rnn(tf.nn.relu(conv2 + b2))
+        #weights.append(rnnweights)
+        #weights.append(rnnbias)
         up_h_convs[layer] = in_node
 
         weights.append((w1, w2))
