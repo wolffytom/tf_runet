@@ -150,7 +150,7 @@ def create_r_conv_net(x, keep_prob, channels, n_class, layers=3, features_root=1
         conv1 = conv2d(h_deconv_concat, w1, keep_prob)
         h_conv = tf.nn.relu(conv1 + b1)
         conv2 = conv2d(h_conv, w2, keep_prob)
-        in_node = tf.nn.relu(conv2 + b2)
+        in_node = block_rnn(tf.nn.relu(conv2 + b2))
         up_h_convs[layer] = in_node
 
         weights.append((w1, w2))
