@@ -59,7 +59,7 @@ def block_rnn(x):
     return x, rnnCell.variables[0], rnnCell.variables[1]
 
 
-def create_r_conv_net(x, keep_prob, channels, n_class, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
+def create_r_conv_net_nobatch(x, keep_prob, channels, n_class, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
     """
     Creates a new convolutional unet for the given parametrization.
 
@@ -204,7 +204,7 @@ def create_r_conv_net(x, keep_prob, channels, n_class, layers=3, features_root=1
     return output_map, variables, int(in_size - size)
 
 
-class Unet(object):
+class RUnet_nobatch(object):
     """
     A unet implementation
 
@@ -225,7 +225,7 @@ class Unet(object):
         self.keep_prob = tf.placeholder(
             tf.float32)  # dropout (keep probability)
 
-        logits, self.variables, self.offset = create_conv_net(
+        logits, self.variables, self.offset = create_r_conv_net_nobatch(
             self.x, self.keep_prob, channels, n_class, **kwargs)
 
         self.cost = self._get_cost(logits, cost, cost_kwargs)
