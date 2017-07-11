@@ -37,7 +37,7 @@ from tensorflow.contrib import rnn
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
 
-def block_rnn(x):
+def block_rnn_zeroinit(x):
     """
     Creates a new convolutional unet for the given parametrization.
 
@@ -46,24 +46,53 @@ def block_rnn(x):
     nx = tf.shape(x)[1]
     ny = tf.shape(x)[2]
     channels = tf.shape(x)[3]
-    x = tf.reshape(x, shape=[-1, channels])
+    x = tf.reshape(x, shape=tf.stack([-1, channels]))
     rnnCell = rnn.BasicRNNCell(channels)
-    rnnInitState = tf.constant(0, dtype=tf.float32, shape=[1, channels])
+    rnnInitState = tf.constant(0, dtype=tf.float32, shape=tf.stack([1, channels]))
     x, _state = tf.nn.dynamic_rnn(
         rnnCell,
         inputs=x,
         initial_state=rnnInitState,
         time_major=False
     )
-    x = tf.reshape(x, shape=[-1, nx, ny, channels])
+    x = tf.reshape(x, shape=tf.stack([-1, nx, ny, channels]))
     return x, rnnCell.variables[0], rnnCell.variables[1]
 
-
-def create_r_conv_net_nobatch(x, keep_prob, channels, n_class, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
+def block_rnn_for_gt1(x, gt1):
     """
     Creates a new convolutional unet for the given parametrization.
 
     :param x: input tensor, shape [?,nx,ny,channels]
+    :param gt1: value gt1, shape [1,nx,ny,n_class]
+    """
+    nx = tf.shape(x)[1]
+    ny = tf.shape(x)[2]
+    #gt1nx = tf.shape(gt1)[1]
+    #gt1ny = tf.shape(gt1)[2]
+    #assert gt1nx == nx and gt1ny == ny , \
+    #    'gt1(with nx:%r, ny:%r) must have same nx and ny with x(with nx:%r, ny:%r)!' % (gt1nx, gt1ny, nx, ny)
+    channels = tf.shape(x)[3]
+    n_class = tf.shape(gt1)[3]
+    x = tf.reshape(x, shape=tf.stack([-1, channels]))
+    rnninput = tf.expand_dims(x, [0])
+    gt1 = tf.reshape(gt1, shape=tf.stack([-1,n_class]))
+    rnnCell = rnn.BasicRNNCell(channels + n_class)
+    x, _state = tf.nn.dynamic_rnn(
+        rnnCell,
+        inputs=rnninput,
+        initial_state=gt1,
+        time_major=False
+    )
+    x = tf.reshape(x, shape=tf.stack([-1, nx, ny, channels + n_class]))
+    return x, rnnCell.variables[0], rnnCell.variables[1]
+
+
+def create_r_conv_net_nobatch(x, gt1, keep_prob, channels, n_class, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
+    """
+    Creates a new convolutional unet for the given parametrization.
+
+    :param x: input tensor, shape [?,nx,ny,channels]
+    :param gt1: input tensor, ground truth of the first frame, shape [1,nx,ny,n_class]
     :param keep_prob: dropout probability tensor
     :param channels: number of channels in the input image
     :param n_class: number of output labels
@@ -82,6 +111,7 @@ def create_r_conv_net_nobatch(x, keep_prob, channels, n_class, layers=3, feature
     nx = tf.shape(x)[1]
     ny = tf.shape(x)[2]
     x_image = tf.reshape(x, tf.stack([-1, nx, ny, channels]))
+    x_image = block_rnn_for_gt1(x_image, gt1)
     in_node = x_image
     batch_size = tf.shape(x_image)[0]
 
@@ -101,7 +131,7 @@ def create_r_conv_net_nobatch(x, keep_prob, channels, n_class, layers=3, feature
         stddev = np.sqrt(2 / (filter_size**2 * features))
         if layer == 0:
             w1 = weight_variable(
-                [filter_size, filter_size, channels, features], stddev)
+                [filter_size, filter_size, channels + n_class, features], stddev)
         else:
             w1 = weight_variable(
                 [filter_size, filter_size, features // 2, features], stddev)
@@ -114,7 +144,7 @@ def create_r_conv_net_nobatch(x, keep_prob, channels, n_class, layers=3, feature
         conv1 = conv2d(in_node, w1, keep_prob)
         tmp_h_conv = tf.nn.relu(conv1 + b1)
         conv2 = conv2d(tmp_h_conv, w2, keep_prob)
-        dw_h_convs[layer], rnnweights, rnnbias = block_rnn(tf.nn.relu(conv2 + b2))
+        dw_h_convs[layer], rnnweights, rnnbias = block_rnn_zeroinit(tf.nn.relu(conv2 + b2))
         #weights.append(rnnweights)
         #weights.append(rnnbias)
 
@@ -152,7 +182,7 @@ def create_r_conv_net_nobatch(x, keep_prob, channels, n_class, layers=3, feature
         conv1 = conv2d(h_deconv_concat, w1, keep_prob)
         h_conv = tf.nn.relu(conv1 + b1)
         conv2 = conv2d(h_conv, w2, keep_prob)
-        in_node, rnnweights, rnnbias  = block_rnn(tf.nn.relu(conv2 + b2))
+        in_node, rnnweights, rnnbias  = block_rnn_zeroinit(tf.nn.relu(conv2 + b2))
         #weights.append(rnnweights)
         #weights.append(rnnbias)
         up_h_convs[layer] = in_node
@@ -336,7 +366,7 @@ class RUnet_nobatch(object):
         logging.info("Model restored from file: %s" % model_path)
 
 
-class Trainer(object):
+class Trainer_RUnet(object):
     """
     Trains a unet instance
 
@@ -351,7 +381,7 @@ class Trainer(object):
 
     def __init__(self, net, batch_size=1, optimizer="momentum", opt_kwargs={}):
         self.net = net
-        self.batch_size = batch_size
+        #self.batch_size = batch_size
         self.optimizer = optimizer
         self.opt_kwargs = opt_kwargs
 
