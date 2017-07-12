@@ -67,6 +67,9 @@ class block_C_RNNCell(rnn.RNNCell):
         :param state: last state, shape [1(batch_size),nx , ny , channels]
         """
         
-        #input_concat = tf.concat([inputs, state], axis=3)
-        output = inputs#tf.nn.relu(self._bias + conv2d(input_concat, self._weight, self.keep_prob))
+        inputs = tf.reshape(inputs, shape=[1, self.nx, self.ny, self.channels])
+        state = tf.reshape(state, shape=[1, self.nx, self.ny, self.channels])
+        input_concat = tf.concat([inputs, state], axis=3)
+        output = tf.nn.relu(self._bias + conv2d(input_concat, self._weight, self.keep_prob))
+        output = tf.reshape(output, shape=[1, self.nx*self.ny*self.channels])
         return output, output
