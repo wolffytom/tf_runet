@@ -5,19 +5,23 @@ from layers import conv2d
 
 import tensorflow as tf
 
-def block_c_rnn(x):
+def block_c_rnn(x, initstate):
     """c-rnn
 
     Args:
-        x: inputs, size as [steps, nx, ny, channels]
+        x: inputs, size as [batch_size, steps, nx, ny, channels]
     """
     x_shapelist = x.get_shape().as_list()
-    nx = x_shapelist[1]
-    ny = x_shapelist[2]
-    channels = x_shapelist[3]
+    assert len(x_shapelist) == 5
+    batch_size = tf.shape(x)[0]
+    steps = tf.shape(x)[1]
+    nx = x_shapelist[2]
+    ny = x_shapelist[3]
+    channels = x_shapelist[4]
 
-    x = tf.reshape(x, shape=[1, -1, nx*ny*channels])
-    initstate = tf.constant(0, dtype=tf.float32, shape=[1, nx* ny* channels])
+    x = tf.reshape(x, shape=[batch_size, steps, nx*ny*channels])
+    #initstate = tf.constant(0, dtype=tf.float32, shape=tf.stack([batch_size, nx* ny* channels]))
+    initstate = tf.reshape(initstate, shape=[batch_size, nx*ny*channels])
     rnnCell = block_C_RNNCell(nx,ny,channels)
     out, _statei = tf.nn.dynamic_rnn(
             rnnCell,
@@ -25,7 +29,7 @@ def block_c_rnn(x):
             initial_state=initstate,
             time_major=False
         )
-    out = tf.reshape(out, shape=[-1, nx, ny, channels])
+    out = tf.reshape(out, shape=tf.stack([batch_size, steps, nx, ny, channels]))
     return out
     
 
@@ -63,8 +67,8 @@ class block_C_RNNCell(rnn.RNNCell):
         """
         call func.
 
-        :param inputs: input tensor, shape [1(batch_size),nx , ny , channels]
-        :param state: last state, shape [1(batch_size),nx , ny , channels]
+        :param inputs: input tensor, shape [batch_size ,nx , ny , channels]
+        :param state: last state, shape [batch_size ,nx , ny , channels]
         """
         
         inputs = tf.reshape(inputs, shape=[1, self.nx, self.ny, self.channels])
