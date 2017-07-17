@@ -42,6 +42,7 @@ class VOT2016_Data_Provider():
             self.inputdata.append(piclist)
             self.gtdata.append(gtlist)
         print(self.datalength)
+        print(self.datanamelist)
         print('DataOK, loaded %d groups data.' % (len(self.datalength)))
         print('Max steps:%d' % (self.maxsteps))
         print('Min steps:%d' % (self.minsteps))
