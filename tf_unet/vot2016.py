@@ -47,6 +47,7 @@ class VOT2016_Data_Provider():
         print('Max steps:%d' % (self.maxsteps))
         print('Min steps:%d' % (self.minsteps))
         self.pointer = 0
+        self.bagdata, self.baglabel = self.get_data(8)
     
     def get_data(self, dataidx):
         assert (0 <= dataidx and dataidx < self.datanamesize)
@@ -76,5 +77,8 @@ class VOT2016_Data_Provider():
         gtdataonehot = gtdataonehot.reshape((steps,nx,ny,2))
         return (inputdata, gtdataonehot)
 
+    def __call__(self, batch_size = 1):
+        return self.bagdata, self.baglabel
+
 dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
-iptdata, gtdataonehot = dptest.get_data(0)
+iptdata, gtdataonehot = dptest(1)
