@@ -19,9 +19,11 @@ def block_c_rnn_without_size(nx, ny, x, x_channels, initstate, out_channels):
     assert x_shapelist[2] == nx and x_shapelist[3] == ny and x_shapelist[4] == x_channels and len(x_shapelist) == 5
     initstate_shapelist = initstate.get_shape().as_list()
     assert initstate_shapelist[1] == nx and initstate_shapelist[2] == ny and initstate_shapelist[3] == out_channels and len(initstate_shapelist) == 4
+    batch_size = tf.shape(x)[0]
+    steps = tf.shape(x)[1]
 
-    x = tf.reshape(x, shape=[tf.shape(x)[0], tf.shape(x)[1], nx*ny*x_channels])
-    initstate = tf.reshape(initstate, shape=[tf.shape(x)[0], nx*ny*out_channels])
+    x = tf.reshape(x, shape=[batch_size, steps, nx*ny*x_channels])
+    initstate = tf.reshape(initstate, shape=[batch_size, nx*ny*out_channels])
     rnnCell = block_C_RNNCell(nx,ny,x_channels,out_channels)
     out, _statei = tf.nn.dynamic_rnn(
             rnnCell,
@@ -170,4 +172,5 @@ def test_without_size():
     print (out)
     print ('helloworld')
 
-test_without_size()
+if __name__ == '__main__':
+    test_without_size()
