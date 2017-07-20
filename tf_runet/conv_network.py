@@ -6,15 +6,16 @@ from block_crnn import block_c_rnn_zero_init_without_size
 from layers import *
 
 class Conv_Net(BasicACNetwork):
-    def __init__(self, nx, ny, channels, n_class, filter_size=3, keep_prob = 0.5):
-        BasicACNetwork.__init__(self, 'Conv_Net')
+    def __init__(self, name, nx, ny, channels, n_class, filter_size=3, keep_prob = 0.5):
+        self.name = name
+        BasicACNetwork.__init__(self, self.name)
         self.nx = nx
         self.ny = ny
         self.channels = channels
         self.n_class = n_class
         self.keep_prob = keep_prob
         self.filter_size = filter_size
-        with tf.variable_scope('Conv_Net') as name_vs:
+        with tf.variable_scope(self.name) as name_vs:
             self.input = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, channels])
             self.output, self.offset = self._create_net_test()
         self.vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, name_vs.name)
@@ -47,7 +48,7 @@ def test_convnet():
     ny = 150
     channels = 3
     n_class = 2
-    conv_net = Conv_Net(nx, ny, channels, n_class)
+    conv_net = Conv_Net('test_convnet', nx, ny, channels, n_class)
     print(conv_net.vars)
 
 if __name__ == '__main__':
