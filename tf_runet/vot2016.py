@@ -47,7 +47,7 @@ class VOT2016_Data_Provider():
         print('Max steps:%d' % (self.maxsteps))
         print('Min steps:%d' % (self.minsteps))
         self.pointer = 0
-        self.bagdata, self.baglabel = self.get_data(8)
+        #self.bagdata, self.baglabel = self.get_data(8)
     
     def get_data(self, dataidx):
         assert (0 <= dataidx and dataidx < self.datanamesize)
@@ -77,13 +77,23 @@ class VOT2016_Data_Provider():
         gtdataonehot = gtdataonehot.reshape((steps,nx,ny,2))
         return (inputdata, gtdataonehot)
 
+    def get_data_one_batch(self, dataidx):
+        inputdata, gtdataonehot = self.get_data(dataidx)
+        inputdata = inputdata.reshape([1] + list(np.shape(inputdata)))
+        gtdataonehot = gtdataonehot.reshape([1] + list(np.shape(gtdataonehot)))
+        return (inputdata, gtdataonehot)
+
     def __call__(self, batch_size = 1):
         return self.bagdata, self.baglabel
 
-dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
-for i in range (20):
-    iptdata, gtdataonehot = dptest.get_data(i)
-    nx = len(iptdata[0])
-    ny = len(iptdata[0][0])
-    print(nx, ' ',ny)
+def printlen():
+    dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
+    for i in range (20):
+        iptdata, gtdataonehot = dptest.get_data(i)
+        nx = len(iptdata[0])
+        ny = len(iptdata[0][0])
+        print(nx, ' ',ny)
+
+if __name__ == '__main__':
+    printlen()
     

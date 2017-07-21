@@ -75,6 +75,28 @@ def to_rgb(img):
     img *= 255
     return img
 
+def crop_video_to_shape_with_offset(data, offset):
+    """
+    Crops the array to the given image shape by removing the border (expects a tensor of shape [batches, steps, nx, ny, channels].
+    
+    :param data: the array to crop
+    :param offset: the offset of x and y
+    """
+    offset = offset // 2
+    return data[:, :, offset:(-offset), offset:(-offset)]
+
+
+def crop_video_to_shape_with_shape(data, shape):
+    """
+    Crops the array to the given image shape by removing the border (expects a tensor of shape [batches, steps, nx, ny, channels].
+    
+    :param data: the array to crop
+    :param shape: the target shape
+    """
+    offset0 = (data.shape[2] - shape[2])//2
+    offset1 = (data.shape[3] - shape[3])//2
+    return data[:, :, offset0:(-offset0), offset1:(-offset1)]
+
 def crop_to_shape(data, shape):
     """
     Crops the array to the given image shape by removing the border (expects a tensor of shape [batches, nx, ny, channels].
@@ -112,3 +134,14 @@ def save_image(img, path):
     """
     Image.fromarray(img.round().astype(np.uint8)).save(path, 'JPEG', dpi=[300,300], quality=90)
 
+def test_crop_video_to_shape():
+    import tensorflow as tf
+    import numpy as np
+    a = np.zeros([1, 27, 150, 150,3])
+    b = [1,27,148,148,3]
+    a = crop_video_to_shape_with_offset(a,4)
+    #a = a[:,1:2]
+    print(np.shape(a))
+
+if __name__ == '__main__':
+    test_crop_video_to_shape()
