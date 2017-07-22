@@ -1,12 +1,10 @@
 import tensorflow as tf
 import numpy as np
+from collections import OrderedDict
 
 from basic_network import BasicACNetwork
 from block_crnn import block_c_rnn_zero_init_without_size
-from layers import pixel_wise_softmax_2
-from layers import weight_variable
-from layers import bias_variable
-from layers import conv2d
+from layers import *
 from vot2016 import VOT2016_Data_Provider
 
 class Conv_Net(BasicACNetwork):
@@ -22,7 +20,7 @@ class Conv_Net(BasicACNetwork):
         with tf.variable_scope(self.name) as vs:
             self.inputs = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, channels])
             self.keep_prob = tf.placeholder(dtype = tf.float32)
-            self.predict, self.offset = self._create_net_test()
+            self.predict, self.offset = self._create_net()
             self.labels = tf.placeholder(dtype = tf.float32, shape=[None, None, nx - self.offset, ny - self.offset, n_class])
             self.cost = self._get_cost(self.predict, cost, cost_kwargs)
         self.optimizer = None
@@ -59,6 +57,99 @@ class Conv_Net(BasicACNetwork):
             size -= 2
         
         return in_node, int(in_size - size)
+
+    #@static method
+    def _reshape_to_4dim(self, _input):
+        shape = tf.shape(_input)
+        return tf.reshape(_input, shape=[shape[0]*shape[1], shape[2],shape[3],shape[4]])
+    #@static method
+    def _reshape_to_5dim(self, _input, batch_size, steps):
+        shape = tf.shape(_input)
+        return tf.reshape(_input, shape=[batch_size, steps, shape[1],shape[2],shape[3]])
+
+    def _create_net(self, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
+        #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
+        batch_size = tf.shape(self.inputs)[0]
+        steps = tf.shape(self.inputs)[1]
+        in_node = self.inputs
+
+        convs = []
+        pools = OrderedDict()
+        deconv = OrderedDict()
+        dw_h_convs = OrderedDict()
+        up_h_convs = OrderedDict()
+    
+        in_size = 1000
+        size = in_size
+        in_node = self._reshape_to_4dim(in_node)
+        # down layers
+        for layer in range(0, layers):
+            features = 2**layer*features_root
+            stddev = np.sqrt(2 / (filter_size**2 * features))
+            if layer == 0:
+                w1 = weight_variable([filter_size, filter_size, self.channels, features], stddev)
+            else:
+                w1 = weight_variable([filter_size, filter_size, features//2, features], stddev)
+            
+            w2 = weight_variable([filter_size, filter_size, features, features], stddev)
+            b1 = bias_variable([features])
+            b2 = bias_variable([features])
+        
+            conv1 = conv2d(in_node, w1, self.keep_prob)
+            tmp_h_conv = tf.nn.relu(conv1 + b1)
+            conv2 = conv2d(tmp_h_conv, w2, self.keep_prob)
+            dw_h_convs[layer] = tf.nn.relu(conv2 + b2)
+        
+            #weights.append((w1, w2))
+            #biases.append((b1, b2))
+            convs.append((conv1, conv2))
+        
+            size -= 4
+            if layer < layers-1:
+                pools[layer] = max_pool(dw_h_convs[layer], pool_size)
+                in_node = pools[layer]
+                size /= 2
+        
+        in_node = dw_h_convs[layers-1]
+        
+        # up layers
+        for layer in range(layers-2, -1, -1):
+            features = 2**(layer+1)*features_root
+            stddev = np.sqrt(2 / (filter_size**2 * features))
+        
+            wd = weight_variable_devonc([pool_size, pool_size, features//2, features], stddev)
+            bd = bias_variable([features//2])
+            h_deconv = tf.nn.relu(deconv2d(in_node, wd, pool_size) + bd)
+            h_deconv_concat = crop_and_concat(dw_h_convs[layer], h_deconv)
+            deconv[layer] = h_deconv_concat
+        
+            w1 = weight_variable([filter_size, filter_size, features, features//2], stddev)
+            w2 = weight_variable([filter_size, filter_size, features//2, features//2], stddev)
+            b1 = bias_variable([features//2])
+            b2 = bias_variable([features//2])
+        
+            conv1 = conv2d(h_deconv_concat, w1, self.keep_prob)
+            h_conv = tf.nn.relu(conv1 + b1)
+            conv2 = conv2d(h_conv, w2, self.keep_prob)
+            in_node = tf.nn.relu(conv2 + b2)
+            up_h_convs[layer] = in_node
+
+            #weights.append((w1, w2))
+            #biases.append((b1, b2))
+            convs.append((conv1, conv2))
+        
+            size *= 2
+            size -= 4
+
+        # Output Map
+        weight = weight_variable([1, 1, features_root, self.n_class], stddev)
+        bias = bias_variable([self.n_class])
+        conv = conv2d(in_node, weight, tf.constant(1.0))
+        output_map = tf.nn.relu(conv + bias)
+        up_h_convs["out"] = output_map
+        output_map = self._reshape_to_5dim(output_map, batch_size, steps)
+        
+        return output_map, int(in_size - size)
 
     def _get_cost(self, logits, cost_name, cost_kwargs):
         """
