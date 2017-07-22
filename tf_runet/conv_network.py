@@ -4,6 +4,9 @@ import numpy as np
 from basic_network import BasicACNetwork
 from block_crnn import block_c_rnn_zero_init_without_size
 from layers import pixel_wise_softmax_2
+from layers import weight_variable
+from layers import bias_variable
+from layers import conv2d
 from vot2016 import VOT2016_Data_Provider
 
 class Conv_Net(BasicACNetwork):
@@ -16,15 +19,24 @@ class Conv_Net(BasicACNetwork):
         self.n_class = n_class
         self.filter_size = filter_size
         self.variables = [] # for regularizer
-        with tf.variable_scope(self.name) as name_vs:
+        with tf.variable_scope(self.name) as vs:
             self.inputs = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, channels])
             self.keep_prob = tf.placeholder(dtype = tf.float32)
             self.predict, self.offset = self._create_net_test()
             self.labels = tf.placeholder(dtype = tf.float32, shape=[None, None, nx - self.offset, ny - self.offset, n_class])
             self.cost = self._get_cost(self.predict, cost, cost_kwargs)
-            
-        self.vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, name_vs.name)
+        self.optimizer = None
         
+    def refresh_variables(self):
+        self.vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.name)
+        #print('==================================')
+        #for a in self.vars:
+        #    print(a)
+        #print('----------------------------------')
+        #for a in tf.global_variables():
+        #    print(a)
+        #print('==================================')
+
     def _create_net_test(self):
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
         batch_size = tf.shape(self.inputs)[0]
@@ -34,9 +46,8 @@ class Conv_Net(BasicACNetwork):
         in_size = 1000
         size = in_size
         with tf.variable_scope('r_net_test') as vs:
-            in_node = block_c_rnn_zero_init_without_size(self.nx, self.ny, in_node, self.channels, self.n_class)
-    
-        """
+            in_node = block_c_rnn_zero_init_without_size(self.nx, self.ny, in_node, self.channels, self.channels)
+        
         with tf.variable_scope('conv1') as vs:
             stddev = np.sqrt(2 / (self.filter_size**2 * self.channels))
             w1 = weight_variable([self.filter_size, self.filter_size, self.channels, self.n_class], stddev)
@@ -46,7 +57,7 @@ class Conv_Net(BasicACNetwork):
             in_node = tf.nn.relu(conv1 + b1)
             in_node = tf.reshape(in_node, shape=[batch_size, steps, self.nx - 2, self.ny - 2, self.n_class])
             size -= 2
-        """
+        
         return in_node, int(in_size - size)
 
     def _get_cost(self, logits, cost_name, cost_kwargs):
@@ -108,7 +119,7 @@ def test_convnet():
         sess.run(tf.global_variables_initializer())
         feed_dict = {
             net.inputs: iptdata,
-            net.labels: gtdata,
+            #net.labels: gtdata,
             net.keep_prob: 1.0
         }
         print(sess.run(net.predict, feed_dict=feed_dict))

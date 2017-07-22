@@ -82,6 +82,8 @@ def crop_video_to_shape_with_offset(data, offset):
     :param data: the array to crop
     :param offset: the offset of x and y
     """
+    if (int(offset) == 0):
+        return data
     offset = offset // 2
     return data[:, :, offset:(-offset), offset:(-offset)]
 
@@ -142,6 +144,22 @@ def test_crop_video_to_shape():
     a = crop_video_to_shape_with_offset(a,4)
     #a = a[:,1:2]
     print(np.shape(a))
+
+def oneHot_to_gray255(one_hot_img):
+    import numpy as np
+    nx, ny, n_class = np.shape(one_hot_img)
+    result = np.zeros((nx, ny) ,dtype=np.uint8)
+    assert( n_class == 2 )
+    for ix in range(nx):
+        for iy in range(ny):
+            b = one_hot_img[ix][iy]
+            if (b[0] > b[1]):
+                result[ix][iy] = 255
+            elif (b[0] < b[1]):
+                result[ix][iy] = 0
+            else:
+                result[ix][iy] = 127
+    return result
 
 if __name__ == '__main__':
     test_crop_video_to_shape()
