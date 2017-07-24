@@ -183,7 +183,7 @@ class RUnet_test(object):
         self._refresh_global_vars(net)
         return cost
 
-    def save(self, sess, model_path):
+    def save(self, model_path):
         """
         Saves the current session to a checkpoint
 
@@ -192,7 +192,8 @@ class RUnet_test(object):
         """
 
         saver = tf.train.Saver()
-        save_path = saver.save(sess, model_path)
+        save_path = saver.save(self.sess, model_path)
+        print("Model saved in file: %s" % save_path)
         return save_path
 
     def restore(self, sess, model_path):
@@ -241,11 +242,18 @@ def test_train():
     runet = RUnet_test('runet_test')
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
     iptdata, gtdata = dptest.get_data_one_batch(8)
+    iptdata = iptdata[:,0:10,:,:,:]
+    gtdata = gtdata[:,0:10,:,:,:]
     for i in range(100):
         cost = runet.train(iptdata, gtdata)
         predictresult = runet.get_predict_results(iptdata, gtdata)
-        (Image.fromarray(util.oneHot_to_gray255(predictresult[0][10]))).show(title='0,10')
+        if (i % 10 == 0):
+            savename = '/home/cjl/model/20170723tf' + str(i)
+            runet.save(savename)
+        if (i % 20 == 0):
+            (Image.fromarray(util.oneHot_to_gray255(predictresult[0][5]))).show(title='0,5')
     print('========================================')
+    runet.save('/home/cjl/model/20170723tf')
     #cost = runet.train(iptdata, gtdata)
     print(cost)
 
@@ -255,7 +263,7 @@ def test_predict_results():
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
     iptdata, gtdata = dptest.get_data_one_batch(8)
     results = runet.get_predict_results(iptdata, gtdata)
-    results = util.oneHot_to_gray255(results[0][10])
+    results = util.oneHot_to_gray255(results[0][5])
     im_t_PIL = Image.fromarray(results)
     im_t_PIL.show()
     print(results)

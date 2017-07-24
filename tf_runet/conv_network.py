@@ -61,11 +61,21 @@ class Conv_Net(BasicACNetwork):
     #@static method
     def _reshape_to_4dim(self, _input):
         shape = tf.shape(_input)
-        return tf.reshape(_input, shape=[shape[0]*shape[1], shape[2],shape[3],shape[4]])
+        return tf.reshape(_input, shape=[tf.to_int32(shape[0]*shape[1]), shape[2],shape[3],shape[4]])
     #@static method
     def _reshape_to_5dim(self, _input, batch_size, steps):
         shape = tf.shape(_input)
         return tf.reshape(_input, shape=[batch_size, steps, shape[1],shape[2],shape[3]])
+
+    def _block_rnn(self, in_node, batch_size, steps, sx, sy, channels):
+        #print(in_node)
+        in_node = self._reshape_to_5dim(in_node, batch_size, steps)
+        #print(in_node)
+        in_node = block_c_rnn_zero_init_without_size(sx, sy, in_node, channels, channels)
+        #print(in_node)
+        in_node = self._reshape_to_4dim(in_node)
+        #print(in_node)
+        return in_node
 
     def _create_net(self, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
@@ -81,6 +91,8 @@ class Conv_Net(BasicACNetwork):
     
         in_size = 1000
         size = in_size
+        sx = self.nx
+        sy = self.ny
         in_node = self._reshape_to_4dim(in_node)
         # down layers
         for layer in range(0, layers):
@@ -88,8 +100,12 @@ class Conv_Net(BasicACNetwork):
             stddev = np.sqrt(2 / (filter_size**2 * features))
             if layer == 0:
                 w1 = weight_variable([filter_size, filter_size, self.channels, features], stddev)
+                in_node_channels = self.channels
             else:
                 w1 = weight_variable([filter_size, filter_size, features//2, features], stddev)
+                in_node_channels = features //2
+            
+            in_node = self._block_rnn(in_node, batch_size, steps, sx, sy, in_node_channels)
             
             w2 = weight_variable([filter_size, filter_size, features, features], stddev)
             b1 = bias_variable([features])
@@ -97,25 +113,39 @@ class Conv_Net(BasicACNetwork):
         
             conv1 = conv2d(in_node, w1, self.keep_prob)
             tmp_h_conv = tf.nn.relu(conv1 + b1)
+
+            #print('layer:', layer)
+            #print(196 * (sx-2) * (sy-2) * features)
+            tmp_h_conv = self._block_rnn(tmp_h_conv, batch_size, steps, sx-2, sy-2, features)
+
             conv2 = conv2d(tmp_h_conv, w2, self.keep_prob)
-            dw_h_convs[layer] = tf.nn.relu(conv2 + b2)
+            tmp_h_conv = tf.nn.relu(conv2 + b2)
+
+            dw_h_convs[layer] = self._block_rnn(tmp_h_conv, batch_size, steps, sx-4, sy-4, features)
         
             #weights.append((w1, w2))
             #biases.append((b1, b2))
             convs.append((conv1, conv2))
         
             size -= 4
+            sx -= 4
+            sy -= 4
             if layer < layers-1:
                 pools[layer] = max_pool(dw_h_convs[layer], pool_size)
                 in_node = pools[layer]
                 size /= 2
+                sx = sx//2
+                sy = sy//2
         
         in_node = dw_h_convs[layers-1]
         
         # up layers
         for layer in range(layers-2, -1, -1):
+
             features = 2**(layer+1)*features_root
             stddev = np.sqrt(2 / (filter_size**2 * features))
+
+            in_node = self._block_rnn(in_node, batch_size, steps, sx, sy, features)
         
             wd = weight_variable_devonc([pool_size, pool_size, features//2, features], stddev)
             bd = bias_variable([features//2])
@@ -130,9 +160,18 @@ class Conv_Net(BasicACNetwork):
         
             conv1 = conv2d(h_deconv_concat, w1, self.keep_prob)
             h_conv = tf.nn.relu(conv1 + b1)
+            sx = sx*2-2
+            sy = sy*2-2
+
+            #print('layer:', layer)
+            #print(196 * (sx) * (sy) * (features//2))
+            h_conv = self._block_rnn(h_conv, batch_size, steps, sx, sy, features//2)
+
             conv2 = conv2d(h_conv, w2, self.keep_prob)
             in_node = tf.nn.relu(conv2 + b2)
             up_h_convs[layer] = in_node
+            sx -= 2
+            sy -= 2
 
             #weights.append((w1, w2))
             #biases.append((b1, b2))
@@ -142,6 +181,8 @@ class Conv_Net(BasicACNetwork):
             size -= 4
 
         # Output Map
+        in_node = self._block_rnn(in_node, batch_size, steps, sx, sy, features_root)
+
         weight = weight_variable([1, 1, features_root, self.n_class], stddev)
         bias = bias_variable([self.n_class])
         conv = conv2d(in_node, weight, tf.constant(1.0))
@@ -203,7 +244,10 @@ def test_convnet():
     n_class = 2
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
     iptdata, gtdata = dptest.get_data_one_batch(8)
+    iptdata = iptdata[:,0:10,:,:,:]
+    gtdata = gtdata[:,0:10,:,:,:]
     iptdata_shape = np.shape(iptdata)
+    print(iptdata_shape)
     batch_size, steps, nx, ny, channels = iptdata_shape
     net = Conv_Net('test_convnet', nx, ny, channels, n_class)
     with tf.Session() as sess:
@@ -214,7 +258,6 @@ def test_convnet():
             net.keep_prob: 1.0
         }
         print(sess.run(net.predict, feed_dict=feed_dict))
-        
 
     #net.predict
 

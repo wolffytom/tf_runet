@@ -44,8 +44,10 @@ def block_c_rnn_zero_init_without_size(nx, ny, x, x_channels, out_channels):
     return:
         output: size as [batch_size, steps, nx, ny, out_channels]
     """
-    x_shapelist = x.get_shape().as_list()
-    assert x_shapelist[2] == nx and x_shapelist[3] == ny and x_shapelist[4] == x_channels and len(x_shapelist) == 5
+    #x_shapelist = x.get_shape().as_list()
+    #print(x_shapelist)
+    #print(nx, ' ', ny, ' ', x_channels)
+    #assert x_shapelist[2] == nx and x_shapelist[3] == ny and x_shapelist[4] == x_channels and len(x_shapelist) == 5
     #initstate_shapelist = initstate.get_shape().as_list()
     #assert initstate_shapelist[1] == nx and initstate_shapelist[2] == ny and initstate_shapelist[3] == out_channels and len(initstate_shapelist) == 4
 

@@ -73,7 +73,7 @@ class VOT2016_Data_Provider():
         gtdata = gtdata.reshape((steps*nx*ny))
         gtdata = gtdata.astype(np.int32)
         gtdataonehot = np.zeros((steps*nx*ny, 2), dtype=np.float32)
-        gtdataonehot[np.arange(steps*nx*ny), gtdata] = 1
+        gtdataonehot[np.arange(steps*nx*ny), gtdata] = 255
         gtdataonehot = gtdataonehot.reshape((steps,nx,ny,2))
         return (inputdata, gtdataonehot)
 
