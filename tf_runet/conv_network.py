@@ -20,7 +20,7 @@ class Conv_Net(BasicACNetwork):
         with tf.variable_scope(self.name) as vs:
             self.inputs = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, channels])
             self.keep_prob = tf.placeholder(dtype = tf.float32)
-            self.predict, self.offset = self._create_net()
+            self.predict, self.offset = self._create_fc_net()
             self.labels = tf.placeholder(dtype = tf.float32, shape=[None, None, nx - self.offset, ny - self.offset, n_class])
             self.cost = self._get_cost(self.predict, cost, cost_kwargs)
         self.optimizer = None
@@ -77,7 +77,26 @@ class Conv_Net(BasicACNetwork):
         #print(in_node)
         return in_node
 
-    def _create_u_net(self, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
+    def _fc_variable(self, weight_shape):
+        with tf.variable_scope('FC_var') as vs:
+            d = 1.0 / np.sqrt(weight_shape[0])
+            bias_shape = [weight_shape[1]]
+            bias = tf.get_variable(name = 'b', shape = bias_shape)
+            weight = tf.get_variable(name = 'w', shape = weight_shape)
+        return weight, bias
+
+    def _create_fc_net(self, layers=1, features_root=16, filter_size=3, pool_size=2, summaries=True):
+        #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
+        batch_size = tf.shape(self.inputs)[0]
+        steps = tf.shape(self.inputs)[1]
+        in_node = tf.reshape(self.inputs, shape=[-1, self.channels])
+        w1,b1 = self._fc_variable([self.channels, self.n_class])
+        output_map = tf.nn.relu(tf.matmul(in_node, w1) + b1)
+        output_map = tf.reshape(output_map, [batch_size, steps, self.nx, self.ny, self.n_class])
+        
+        return output_map, 0
+
+    def _create_u_net(self, layers=1, features_root=16, filter_size=3, pool_size=2, summaries=True):
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
         batch_size = tf.shape(self.inputs)[0]
         steps = tf.shape(self.inputs)[1]
@@ -370,7 +389,7 @@ def test_convnet():
         sess.run(tf.global_variables_initializer())
         feed_dict = {
             net.inputs: iptdata,
-            #net.labels: gtdata,
+            net.labels: gtdata,
             net.keep_prob: 1.0
         }
         print(sess.run(net.predict, feed_dict=feed_dict))

@@ -45,7 +45,7 @@ class RUnet_test(object):
     :param cost_kwargs: (optional) kwargs passed to the cost function. See Unet._get_cost for more options
     """
 
-    def __init__(self, name, channels=3, n_class=2, cost="cross_entropy", cost_kwargs={}, **kwargs):
+    def __init__(self, name, global_nx = 100, global_ny = 100, channels=3, n_class=2, cost="cross_entropy", cost_kwargs={}, **kwargs):
         tf.reset_default_graph()
         
         self.name = name
@@ -56,7 +56,7 @@ class RUnet_test(object):
         self.sess = tf.Session()
         self.global_net_idx = 0
         self.global_step = tf.Variable(0)
-        self._create_global_net_and_init_vars()
+        self._create_global_net_and_init_vars(nx=global_nx, ny=global_ny)
         """
         self.x = tf.placeholder("float", shape=[None, None, None, None, channels])
         self.y = tf.placeholder("float", shape=[None, None, None, None, n_class])
@@ -78,9 +78,7 @@ class RUnet_test(object):
         self.accuracy = tf.reduce_mean(tf.cast(self.correct_pred, tf.float32))
         """
     
-    def _create_global_net_and_init_vars(self, opt_kwargs={}):
-        nx = 100
-        ny = 100
+    def _create_global_net_and_init_vars(self, opt_kwargs={}, nx=100, ny=100):
         self.global_net = Conv_Net(self.name + '.' + str(self.global_net_idx) + '.global_net', nx, ny, self.channels, self.n_class)
         self.global_net_idx = self.global_net_idx + 1
         self.global_net.optimizer = tf.train.RMSPropOptimizer(learning_rate=0.001,**opt_kwargs).minimize(self.global_net.cost)
@@ -151,6 +149,36 @@ class RUnet_test(object):
             net.keep_prob: 1.
         }
         cost = self.sess.run(net.cost, feed_dict=feed_dict)
+        return cost
+
+    def train_globalnet(self, iptdata, gtdata, optimizer="momentum", opt_kwargs={}):
+        iptdata_shape = np.shape(iptdata)
+        batch_size, steps, nx, ny, channels = iptdata_shape
+        assert self.channels == channels
+
+        netname = 'train_net'# + '_as_size_nx' + str(nx) + '_ny' + str(ny)
+        net = self.global_net#self._create_net_and_copy_vars(netname, nx, ny)
+        gtdata = crop_video_to_shape_with_offset(gtdata, net.offset)
+        learning_rate = opt_kwargs.pop("learning_rate", 0.2)
+        decay_rate = opt_kwargs.pop("decay_rate", 0.95)
+        momentum = opt_kwargs.pop("momentum", 0.2)
+        rmsp_epsilon = opt_kwargs.pop("rmsp_epsilon", 0.1)
+        grad_applier = tf.train.RMSPropOptimizer(
+            learning_rate = learning_rate,
+            decay = decay_rate,
+            momentum = momentum, 
+            epsilon = rmsp_epsilon)
+        #for v in (tf.global_variables()):
+        #    print(v)
+        #    print(self.sess.run(v))
+        feed_dict = {
+            net.inputs: iptdata,
+            net.labels: gtdata,
+            net.keep_prob: 1.0
+        }
+        _opt, cost = self.sess.run((net.optimizer,net.cost), feed_dict=feed_dict)
+        print ('cost as:' , cost)
+        #self._refresh_global_vars(net)
         return cost
 
     def train(self, iptdata, gtdata, optimizer="momentum", opt_kwargs={}):
@@ -239,19 +267,22 @@ def get_image_summary(img, idx=0):
 def test_train():
     from PIL import Image
     print('begin')
-    runet = RUnet_test('runet_test')
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
     iptdata, gtdata = dptest.get_data_one_batch(8)
-    iptdata = iptdata[:,0:10,:,:,:]
-    gtdata = gtdata[:,0:10,:,:,:]
+    iptdata = iptdata[:,0:1,:,:,:]
+    gtdata = gtdata[:,0:1,:,:,:]
+
+    runet = RUnet_test('runet_test', global_nx = np.shape(iptdata)[2], global_ny = np.shape(iptdata)[3])
+
     for i in range(100):
-        cost = runet.train(iptdata, gtdata)
-        predictresult = runet.get_predict_results(iptdata, gtdata)
-        if (i % 10 == 0):
-            savename = '/home/cjl/model/20170723tf' + str(i)
-            runet.save(savename)
-        if (i % 20 == 0):
-            (Image.fromarray(util.oneHot_to_gray255(predictresult[0][5]))).show(title='0,5')
+        cost = runet.train_globalnet(iptdata, gtdata)
+        #predictresult = runet.get_predict_results(iptdata, gtdata)
+        print(i,'-------',cost,'\n')
+        #if (i % 10 == 0):
+            #savename = '/home/cjl/model/20170723tf' + str(i)
+            #runet.save(savename)
+        #if (i % 20 == 0):
+            #(Image.fromarray(util.oneHot_to_gray255(predictresult[0][5]))).show(title='0,5')
     print('========================================')
     runet.save('/home/cjl/model/20170723tf')
     #cost = runet.train(iptdata, gtdata)
