@@ -5,7 +5,7 @@ from layers import conv2d
 
 import tensorflow as tf
 
-def block_c_rnn_without_size(nx, ny, x, x_channels, initstate, out_channels):
+def block_c_rnn_without_size(nx, ny, x, x_channels, initstate, out_state_channels):
     """c-rnn
 
     Args:
@@ -15,25 +15,29 @@ def block_c_rnn_without_size(nx, ny, x, x_channels, initstate, out_channels):
     return:
         output: size as [batch_size, steps, nx, ny, out_channels]
     """
-    x_shapelist = x.get_shape().as_list()
-    assert x_shapelist[2] == nx and x_shapelist[3] == ny and x_shapelist[4] == x_channels and len(x_shapelist) == 5
-    initstate_shapelist = initstate.get_shape().as_list()
-    assert initstate_shapelist[1] == nx and initstate_shapelist[2] == ny and initstate_shapelist[3] == out_channels and len(initstate_shapelist) == 4
-    batch_size = tf.shape(x)[0]
-    steps = tf.shape(x)[1]
+    #x_shapelist = x.get_shape().as_list()
+    #print(x_shapelist)
+    #assert x_shapelist[2] == nx and x_shapelist[3] == ny and x_shapelist[4] == x_channels and len(x_shapelist) == 5
+    #initstate_shapelist = initstate.get_shape().as_list()
+    #assert initstate_shapelist[1] == nx and initstate_shapelist[2] == ny and initstate_shapelist[3] == out_channels and len(initstate_shapelist) == 4
+    #batch_size = tf.shape(x)[0]
+    #steps = tf.shape(x)[1]
 
-    x = tf.reshape(x, shape=[batch_size, steps, nx*ny*x_channels])
-    initstate = tf.reshape(initstate, shape=[batch_size, nx*ny*out_channels])
-    rnnCell = block_C_RNNCell(nx,ny,x_channels,out_channels)
-    out, _statei = tf.nn.dynamic_rnn(
+    variables = []
+    with tf.variable_scope('block_c_rnn_without_size') as vs:
+        x = tf.reshape(x, shape=[tf.shape(x)[0], tf.shape(x)[1], nx*ny*x_channels])
+        initstate = tf.reshape(initstate, shape=[tf.shape(x)[0], nx*ny*out_state_channels], name='initstate')
+        rnnCell = block_C_RNNCell(nx,ny,x_channels,out_state_channels)
+        variables = variables + rnnCell.vars
+        out, _statei = tf.nn.dynamic_rnn(
             rnnCell,
             inputs=x,
             #dtype = tf.float32,
             initial_state=initstate,
             time_major=False
         )
-    out = tf.reshape(out, shape=[tf.shape(x)[0], tf.shape(x)[1], nx, ny, out_channels])
-    return out
+        out = tf.reshape(out, shape=[tf.shape(x)[0], tf.shape(x)[1], nx, ny, out_state_channels], name = 'out')
+    return out, variables
 
 def block_c_rnn_zero_init_without_size(nx, ny, x, x_channels, out_channels):
     """c-rnn
@@ -115,9 +119,12 @@ class block_C_RNNCell(rnn.RNNCell):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.keep_prob = keep_prob
+        self.vars = []
         with tf.variable_scope('block_C_RNNCell') as vs:
             self._weight = weight_variable([1, 1, in_channels + out_channels, out_channels])
             self._bias = bias_variable([out_channels])
+            self.vars.append(self._weight)
+            self.vars.append(self._bias)
 
     @property
     def state_size(self):
@@ -169,9 +176,10 @@ def test_without_size():
     initstate = tf.placeholder(tf.float32, shape=(None, nx, ny, n_class))
     #create_r_conv_net_nobatch(x, gt1, True, channals, n_class)
     #out = block_rnn_zeroinit(x,nx,ny,channals)
-    out = block_c_rnn_without_size(nx, ny, x, channels, initstate, n_class)
+    out, variables = block_c_rnn_without_size(nx, ny, x, channels, initstate, n_class)
 
-    print (out)
+    print ("out:",out)
+    print ("vars:",variables)
     print ('helloworld')
 
 if __name__ == '__main__':

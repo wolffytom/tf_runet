@@ -4,36 +4,40 @@ from collections import OrderedDict
 
 from basic_network import BasicACNetwork
 from block_crnn import block_c_rnn_zero_init_without_size
+from block_crnn import block_c_rnn_without_size
 from layers import *
 from vot2016 import VOT2016_Data_Provider
 
 class Conv_Net(BasicACNetwork):
     def __init__(self, name, nx, ny, channels, n_class, filter_size=3, cost="cross_entropy", cost_kwargs={}):
+        cost_kwargs["regularizer"] = 0.003
+
         self.name = name
         BasicACNetwork.__init__(self, self.name)
         self.nx = nx
         self.ny = ny
+        self._calculate_offset()
         self.channels = channels
         self.n_class = n_class
         self.filter_size = filter_size
         self.variables = [] # for regularizer
         with tf.variable_scope(self.name) as vs:
             self.inputs = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, channels])
+            self.labels = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, n_class])
+            self.firstframe = self.inputs[:,:1,:,:,:]
+            self.otherframes = self.inputs[:,1:,:,:,:]
+            self.firstlabel = self.labels[:,:1,:,:,:]
+            self.otherlabels = self.labels[:,1:,self.offsetx:self.offsetx + self.sx,self.offsety:self.offsety + self.sy,:]
             self.keep_prob = tf.placeholder(dtype = tf.float32)
-            self.predict, self.offset = self._create_fc_net()
-            self.labels = tf.placeholder(dtype = tf.float32, shape=[None, None, nx - self.offset, ny - self.offset, n_class])
-            self.cost = self._get_cost(self.predict, cost, cost_kwargs)
+            self.predict, self.variables = self._create_ru_net()
+            self.predict_softmax = tf.nn.softmax(self.predict)
+            #self.cost = self._get_cross_entropy_cost(self.predict, self.otherlabels)
+            self.cost = self._get_cost(self.predict, self.otherlabels, "cross_entropy_with_class_ave_weights", cost_kwargs)
+            self.accuracy = self._get_accuracy(self.predict, self.otherlabels)
         self.optimizer = None
         
     def refresh_variables(self):
         self.vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.name)
-        #print('==================================')
-        #for a in self.vars:
-        #    print(a)
-        #print('----------------------------------')
-        #for a in tf.global_variables():
-        #    print(a)
-        #print('==================================')
 
     def _create_net_test(self):
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
@@ -60,14 +64,22 @@ class Conv_Net(BasicACNetwork):
 
     #@static method
     def _reshape_to_4dim(self, _input):
-        shape = tf.shape(_input)
-        return tf.reshape(_input, shape=[tf.to_int32(shape[0]*shape[1]), shape[2],shape[3],shape[4]])
+        with tf.variable_scope('reshape_to_4dim') as vs:
+            shape = tf.shape(_input)
+            return tf.reshape(_input, shape=[tf.to_int32(shape[0]*shape[1]), shape[2],shape[3],shape[4]])
     #@static method
     def _reshape_to_5dim(self, _input, batch_size, steps):
-        shape = tf.shape(_input)
-        return tf.reshape(_input, shape=[batch_size, steps, shape[1],shape[2],shape[3]])
+        with tf.variable_scope('reshape_to_5dim') as vs:
+            shape = tf.shape(_input)
+            return tf.reshape(_input, shape=[batch_size, steps, shape[1],shape[2],shape[3]])
 
-    def _block_rnn(self, in_node, batch_size, steps, sx, sy, channels):
+    def _block_rnn(self, in_node, batch_size, steps, sx, sy, in_channels, out_state_channels, initstate):
+        in_node = self._reshape_to_5dim(in_node, batch_size, steps)
+        in_node, variables = block_c_rnn_without_size(sx, sy, in_node, in_channels, initstate, out_state_channels)
+        in_node = self._reshape_to_4dim(in_node)
+        return in_node, variables
+
+    def _block_rnn_zero_init(self, in_node, batch_size, steps, sx, sy, channels):
         #print(in_node)
         in_node = self._reshape_to_5dim(in_node, batch_size, steps)
         #print(in_node)
@@ -96,7 +108,7 @@ class Conv_Net(BasicACNetwork):
         
         return output_map, 0
 
-    def _create_u_net(self, layers=1, features_root=16, filter_size=3, pool_size=2, summaries=True):
+    def _create_u_net(self, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
         batch_size = tf.shape(self.inputs)[0]
         steps = tf.shape(self.inputs)[1]
@@ -211,8 +223,171 @@ class Conv_Net(BasicACNetwork):
         
         return output_map, int(in_size - size)
 
+    def _calculate_offset(self, layers=3):
+        sx = self.nx
+        sy = self.ny
+        # down layers
+        for layer in range(0, layers):
+            sx -= 4
+            sy -= 4
+            if layer < layers-1:
+                sx = sx//2
+                sy = sy//2
+        # up layers
+        for layer in range(layers-2, -1, -1):
+            sx = sx * 2 - 4
+            sy = sy * 2 - 4
+        self.sx = sx
+        self.offsetx = (self.nx - self.sx) // 2
+        self.sy = sy
+        self.offsety = (self.ny - self.sy) // 2
 
     def _create_ru_net(self, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
+        first = tf.concat([self.firstframe,self.firstlabel], axis = 4)
+        initstates = {}
+        variables = []
+
+        def _ru_part(INIT, in_node):
+            batch_size = tf.shape(in_node)[0]
+            steps = tf.shape(in_node)[1]
+
+            convs = []
+            pools = OrderedDict()
+            deconv = OrderedDict()
+            dw_h_convs = OrderedDict()
+            up_h_convs = OrderedDict()
+ 
+            sx = self.nx
+            sy = self.ny
+            in_node_channels = -1
+            in_node = self._reshape_to_4dim(in_node)
+
+            def block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, out_part_channels):
+                if True == INIT:
+                    initstates[name_crnn] = in_part
+                    return in_part
+                else:
+                    with tf.variable_scope('crnn-'+name_crnn) as vs:
+                        out_part, block_rnn_vars = self._block_rnn(in_part, batch_size, steps, sx, sy, in_part_channels, out_part_channels, initstates[name_crnn])
+                        variables.extend(block_rnn_vars)
+                        return out_part
+            
+            def block_rnn_part(name_crnn, in_part, in_part_channels):
+                return block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, in_part_channels)
+            
+            # down layers
+            for layer in range(0, layers):
+                with tf.variable_scope('down_layer-'+str(layer)) as vs:
+                    features = 2**layer*features_root
+                    stddev = np.sqrt(2 / (filter_size**2 * features))
+
+                    # block_rnn for input
+                    if layer == 0:
+                        in_node_channels = self.channels + self.n_class
+                        in_node = block_rnn_part_different_out_channels('down'+str(layer)+'_in', in_node, self.channels, in_node_channels)
+                    else:
+                        in_node_channels = features //2
+                        in_node = block_rnn_part('down'+str(layer)+'_in', in_node, in_node_channels)
+            
+                    # conv vars
+                    w1 = weight_variable([filter_size, filter_size, in_node_channels, features], stddev)
+                    w2 = weight_variable([filter_size, filter_size, features, features], stddev)
+                    b1 = bias_variable([features])
+                    b2 = bias_variable([features])
+                    variables.extend((w1,b1,w2,b2))
+        
+                    # conv1 + block_rnn
+                    conv1 = conv2d(in_node, w1, self.keep_prob)
+                    sx -= 2
+                    sy -= 2
+                    conv1_relu = tf.nn.relu(conv1 + b1)
+                    conv1_relu_r = block_rnn_part('down'+str(layer)+'_conv1_relu', conv1_relu, features)
+
+                    # conv2 + block_rnn
+                    conv2 = conv2d(conv1_relu_r, w2, self.keep_prob)
+                    sx -= 2
+                    sy -= 2
+                    conv2_relu = tf.nn.relu(conv2 + b2)
+                    conv2_relu_r = block_rnn_part('down'+str(layer)+'_conv2_relu', conv2_relu, features)
+
+                    # for up layers's input.
+                    # it should be noticed that this part is the result after an block_rnn opt.
+                    dw_h_convs[layer] = conv2_relu_r
+                    
+                    if layer < layers-1:
+                        # maxpool
+                        pools[layer] = max_pool(dw_h_convs[layer], pool_size)
+                        sx = sx//2
+                        sy = sy//2
+                        in_node = pools[layer]
+        
+            in_node = dw_h_convs[layers-1]
+        
+            # up layers
+            for layer in range(layers-2, -1, -1):
+                with tf.variable_scope('up-'+str(layer)) as vs:
+                    features = 2**(layer+1)*features_root
+                    stddev = np.sqrt(2 / (filter_size**2 * features))
+
+                    # conv vars
+                    wd = weight_variable_devonc([pool_size, pool_size, features//2, features], stddev)
+                    bd = bias_variable([features//2])
+                    w1 = weight_variable([filter_size, filter_size, features, features//2], stddev)
+                    w2 = weight_variable([filter_size, filter_size, features//2, features//2], stddev)
+                    b1 = bias_variable([features//2])
+                    b2 = bias_variable([features//2])
+                    variables.extend((wd,bd,w1,w2,b1,b2))
+
+                    # block_rnn for input
+                    in_node = block_rnn_part('up'+str(layer)+'_in', in_node, features)
+
+                    # deconv layer
+                    h_deconv = tf.nn.relu(deconv2d(in_node, wd, pool_size) + bd)
+                    sx *= 2
+                    sy *= 2
+                    h_deconv_concat = crop_and_concat(dw_h_convs[layer], h_deconv)
+                    deconv[layer] = h_deconv_concat
+        
+                    # conv1 + block_rnn
+                    conv1 = conv2d(h_deconv_concat, w1, self.keep_prob)
+                    sx -= 2
+                    sy -= 2
+                    conv1_relu = tf.nn.relu(conv1 + b1)
+                    conv1_relu_r = block_rnn_part('up'+str(layer)+'_conv1_relu', conv1_relu, features//2)
+
+                    # conv2
+                    conv2 = conv2d(conv1_relu, w2, self.keep_prob)
+                    sx -= 2
+                    sy -= 2
+                    conv2_relu = tf.nn.relu(conv2+b2)
+            
+                    up_h_convs[layer] = in_node = conv2_relu
+
+            # last block_rnn
+            in_node = block_rnn_part('last_block_rnn', in_node, features//2)
+
+            # returns of this part func
+            if True == INIT:
+                return None
+            else:
+                weight = weight_variable([1, 1, features_root, self.n_class], stddev)
+                bias = bias_variable([self.n_class])
+                variables.extend((weight, bias))
+                conv = conv2d(in_node, weight, tf.constant(1.0))
+                output_map = tf.nn.relu(conv + bias)
+                up_h_convs["out"] = output_map
+                output_map = self._reshape_to_5dim(output_map, batch_size, steps)
+                return output_map
+
+        # calculate the initstates
+        with tf.variable_scope('init_frame') as vs:
+            _ru_part(True, first)
+
+        # process other frames
+        with tf.variable_scope('other_frames') as vs:
+            return _ru_part(False, self.otherframes), variables
+
+    def _ru_net_rnn():
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
         batch_size = tf.shape(self.inputs)[0]
         steps = tf.shape(self.inputs)[1]
@@ -240,7 +415,7 @@ class Conv_Net(BasicACNetwork):
                 w1 = weight_variable([filter_size, filter_size, features//2, features], stddev)
                 in_node_channels = features //2
             
-            in_node = self._block_rnn(in_node, batch_size, steps, sx, sy, in_node_channels)
+            in_node = self._block_rnn_zero_init(in_node, batch_size, steps, sx, sy, in_node_channels)
             
             w2 = weight_variable([filter_size, filter_size, features, features], stddev)
             b1 = bias_variable([features])
@@ -249,14 +424,12 @@ class Conv_Net(BasicACNetwork):
             conv1 = conv2d(in_node, w1, self.keep_prob)
             tmp_h_conv = tf.nn.relu(conv1 + b1)
 
-            #print('layer:', layer)
-            #print(196 * (sx-2) * (sy-2) * features)
-            tmp_h_conv = self._block_rnn(tmp_h_conv, batch_size, steps, sx-2, sy-2, features)
+            tmp_h_conv = self._block_rnn_zero_init(tmp_h_conv, batch_size, steps, sx-2, sy-2, features)
 
             conv2 = conv2d(tmp_h_conv, w2, self.keep_prob)
             tmp_h_conv = tf.nn.relu(conv2 + b2)
 
-            dw_h_convs[layer] = self._block_rnn(tmp_h_conv, batch_size, steps, sx-4, sy-4, features)
+            dw_h_convs[layer] = self._block_rnn_zero_init(tmp_h_conv, batch_size, steps, sx-4, sy-4, features)
         
             #weights.append((w1, w2))
             #biases.append((b1, b2))
@@ -280,7 +453,7 @@ class Conv_Net(BasicACNetwork):
             features = 2**(layer+1)*features_root
             stddev = np.sqrt(2 / (filter_size**2 * features))
 
-            in_node = self._block_rnn(in_node, batch_size, steps, sx, sy, features)
+            in_node = self._block_rnn_zero_init(in_node, batch_size, steps, sx, sy, features)
         
             wd = weight_variable_devonc([pool_size, pool_size, features//2, features], stddev)
             bd = bias_variable([features//2])
@@ -298,9 +471,7 @@ class Conv_Net(BasicACNetwork):
             sx = sx*2-2
             sy = sy*2-2
 
-            #print('layer:', layer)
-            #print(196 * (sx) * (sy) * (features//2))
-            h_conv = self._block_rnn(h_conv, batch_size, steps, sx, sy, features//2)
+            h_conv = self._block_rnn_zero_init(h_conv, batch_size, steps, sx, sy, features//2)
 
             conv2 = conv2d(h_conv, w2, self.keep_prob)
             in_node = tf.nn.relu(conv2 + b2)
@@ -316,7 +487,7 @@ class Conv_Net(BasicACNetwork):
             size -= 4
 
         # Output Map
-        in_node = self._block_rnn(in_node, batch_size, steps, sx, sy, features_root)
+        in_node = self._block_rnn_zero_init(in_node, batch_size, steps, sx, sy, features_root)
 
         weight = weight_variable([1, 1, features_root, self.n_class], stddev)
         bias = bias_variable([self.n_class])
@@ -327,7 +498,131 @@ class Conv_Net(BasicACNetwork):
         
         return output_map, int(in_size - size)
 
-    def _get_cost(self, logits, cost_name, cost_kwargs):
+    def _create_ru_net_zero_init(self, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
+        #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
+        batch_size = tf.shape(self.inputs)[0]
+        steps = tf.shape(self.inputs)[1]
+        in_node = self.inputs
+
+        convs = []
+        pools = OrderedDict()
+        deconv = OrderedDict()
+        dw_h_convs = OrderedDict()
+        up_h_convs = OrderedDict()
+    
+        in_size = 1000
+        size = in_size
+        sx = self.nx
+        sy = self.ny
+        in_node = self._reshape_to_4dim(in_node)
+        # down layers
+        for layer in range(0, layers):
+            features = 2**layer*features_root
+            stddev = np.sqrt(2 / (filter_size**2 * features))
+            if layer == 0:
+                w1 = weight_variable([filter_size, filter_size, self.channels, features], stddev)
+                in_node_channels = self.channels
+            else:
+                w1 = weight_variable([filter_size, filter_size, features//2, features], stddev)
+                in_node_channels = features //2
+            
+            in_node = self._block_rnn_zero_init(in_node, batch_size, steps, sx, sy, in_node_channels)
+            
+            w2 = weight_variable([filter_size, filter_size, features, features], stddev)
+            b1 = bias_variable([features])
+            b2 = bias_variable([features])
+        
+            conv1 = conv2d(in_node, w1, self.keep_prob)
+            tmp_h_conv = tf.nn.relu(conv1 + b1)
+
+            tmp_h_conv = self._block_rnn_zero_init(tmp_h_conv, batch_size, steps, sx-2, sy-2, features)
+
+            conv2 = conv2d(tmp_h_conv, w2, self.keep_prob)
+            tmp_h_conv = tf.nn.relu(conv2 + b2)
+
+            dw_h_convs[layer] = self._block_rnn_zero_init(tmp_h_conv, batch_size, steps, sx-4, sy-4, features)
+        
+            #weights.append((w1, w2))
+            #biases.append((b1, b2))
+            convs.append((conv1, conv2))
+        
+            size -= 4
+            sx -= 4
+            sy -= 4
+            if layer < layers-1:
+                pools[layer] = max_pool(dw_h_convs[layer], pool_size)
+                in_node = pools[layer]
+                size /= 2
+                sx = sx//2
+                sy = sy//2
+        
+        in_node = dw_h_convs[layers-1]
+        
+        # up layers
+        for layer in range(layers-2, -1, -1):
+
+            features = 2**(layer+1)*features_root
+            stddev = np.sqrt(2 / (filter_size**2 * features))
+
+            in_node = self._block_rnn_zero_init(in_node, batch_size, steps, sx, sy, features)
+        
+            wd = weight_variable_devonc([pool_size, pool_size, features//2, features], stddev)
+            bd = bias_variable([features//2])
+            h_deconv = tf.nn.relu(deconv2d(in_node, wd, pool_size) + bd)
+            h_deconv_concat = crop_and_concat(dw_h_convs[layer], h_deconv)
+            deconv[layer] = h_deconv_concat
+        
+            w1 = weight_variable([filter_size, filter_size, features, features//2], stddev)
+            w2 = weight_variable([filter_size, filter_size, features//2, features//2], stddev)
+            b1 = bias_variable([features//2])
+            b2 = bias_variable([features//2])
+        
+            conv1 = conv2d(h_deconv_concat, w1, self.keep_prob)
+            h_conv = tf.nn.relu(conv1 + b1)
+            sx = sx*2-2
+            sy = sy*2-2
+
+            h_conv = self._block_rnn_zero_init(h_conv, batch_size, steps, sx, sy, features//2)
+
+            conv2 = conv2d(h_conv, w2, self.keep_prob)
+            in_node = tf.nn.relu(conv2 + b2)
+            up_h_convs[layer] = in_node
+            sx -= 2
+            sy -= 2
+
+            #weights.append((w1, w2))
+            #biases.append((b1, b2))
+            convs.append((conv1, conv2))
+        
+            size *= 2
+            size -= 4
+
+        # Output Map
+        in_node = self._block_rnn_zero_init(in_node, batch_size, steps, sx, sy, features_root)
+
+        weight = weight_variable([1, 1, features_root, self.n_class], stddev)
+        bias = bias_variable([self.n_class])
+        conv = conv2d(in_node, weight, tf.constant(1.0))
+        output_map = tf.nn.relu(conv + bias)
+        up_h_convs["out"] = output_map
+        output_map = self._reshape_to_5dim(output_map, batch_size, steps)
+
+        return output_map, int(in_size - size)
+
+    def _get_accuracy(self, logits, labels):
+        flat_logits = tf.reshape(logits, [-1, self.n_class])
+        flat_labels = tf.reshape(labels, [-1, self.n_class])
+        correct_prediction = tf.equal(tf.argmax(flat_logits, axis=1), tf.argmax(flat_labels, axis=1))
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        return accuracy
+
+    def _get_cross_entropy_cost(self, logits, labels):
+        flat_logits = tf.reshape(logits, [-1, self.n_class])
+        flat_labels = tf.reshape(labels, [-1, self.n_class])
+        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=flat_logits,labels=flat_labels))
+        return loss
+
+    def _get_cost(self, logits, labels, cost_name, cost_kwargs = {}):
         """
         Constructs the cost function, either cross_entropy, weighted cross_entropy or dice_coefficient.
         Optional arguments are: 
@@ -336,7 +631,7 @@ class Conv_Net(BasicACNetwork):
         """
 
         flat_logits = tf.reshape(logits, [-1, self.n_class])
-        flat_labels = tf.reshape(self.labels, [-1, self.n_class])
+        flat_labels = tf.reshape(labels, [-1, self.n_class])
         if cost_name == "cross_entropy":
             class_weights = cost_kwargs.pop("class_weights", None)
 
@@ -356,6 +651,18 @@ class Conv_Net(BasicACNetwork):
             else:
                 loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=flat_logits,
                                                                               labels=flat_labels))
+        elif cost_name == "cross_entropy_with_class_ave_weights":
+            classes_distrib_inv = 1 / tf.reduce_sum(flat_labels, axis=0)
+            classes_weights = classes_distrib_inv / tf.reduce_sum(classes_distrib_inv)
+            weight_map = tf.reduce_sum(flat_labels * classes_weights, axis=1)
+
+            loss_map = tf.nn.softmax_cross_entropy_with_logits(
+                logits=flat_logits, labels=flat_labels)
+            weighted_loss = tf.multiply(loss_map, weight_map)
+
+            loss = tf.reduce_mean(weighted_loss)
+
+
         elif cost_name == "dice_coefficient":
             eps = 1e-5
             prediction = pixel_wise_softmax_2(logits)
@@ -382,7 +689,7 @@ def test_convnet():
     iptdata = iptdata[:,0:10,:,:,:]
     gtdata = gtdata[:,0:10,:,:,:]
     iptdata_shape = np.shape(iptdata)
-    print(iptdata_shape)
+    gtdata_shape = np.shape(gtdata)
     batch_size, steps, nx, ny, channels = iptdata_shape
     net = Conv_Net('test_convnet', nx, ny, channels, n_class)
     with tf.Session() as sess:

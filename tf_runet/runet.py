@@ -26,12 +26,15 @@ from collections import OrderedDict
 import logging
 import time
 import util
+from PIL import Image
 
 import tensorflow as tf
+from config import *
 
 from conv_network import Conv_Net
 from vot2016 import VOT2016_Data_Provider
 from util import crop_video_to_shape_with_offset
+from util import oneHot_to_gray255
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
@@ -81,7 +84,8 @@ class RUnet_test(object):
     def _create_global_net_and_init_vars(self, opt_kwargs={}, nx=100, ny=100):
         self.global_net = Conv_Net(self.name + '.' + str(self.global_net_idx) + '.global_net', nx, ny, self.channels, self.n_class)
         self.global_net_idx = self.global_net_idx + 1
-        self.global_net.optimizer = tf.train.RMSPropOptimizer(learning_rate=0.001,**opt_kwargs).minimize(self.global_net.cost)
+        #self.global_net.optimizer = tf.train.RMSPropOptimizer(learning_rate=0.001,**opt_kwargs).minimize(self.global_net.cost)
+        self.global_net.optimizer = self._create_optimizer(self.global_net.cost, args.optimizer)
         self.global_net.refresh_variables()
 
         #for v in (self.global_net.optimizer._g):
@@ -93,15 +97,24 @@ class RUnet_test(object):
         self.global_net_idx = self.global_net_idx + 1
         #net.optimizer = tf.train.AdamOptimizer(learning_rate=0.001,**opt_kwargs).minimize(net.cost,
         #                                                                   global_step=self.global_step)
-        net.optimizer = tf.train.RMSPropOptimizer(learning_rate=0.001,**opt_kwargs).minimize(net.cost)
+        #net.optimizer = tf.train.RMSPropOptimizer(learning_rate=0.001,**opt_kwargs).minimize(net.cost)
+        net.optimizer = self._create_optimizer(net.cost, optimizer = args.optimizer)
         net.refresh_variables()
         self.sess.run(net.sync_from(self.global_net))
         return net
 
+    def _create_optimizer(self, to_minimize, optimizer = "RMSProp"):
+        if optimizer == "RMSProp":
+            return tf.train.RMSPropOptimizer(learning_rate = args.learning_rate).minimize(to_minimize)
+        elif optimizer == "Adam":
+            return tf.train.AdamOptimizer(learning_rate=args.learning_rate).minimize(to_minimize)
+        else:
+            return None
+
     def _refresh_global_vars(self, net):
         self.sess.run(self.global_net.sync_from(net))
     
-    def get_predict_results(self, iptdata, gtdata):
+    def get_predict_softmax_results(self, iptdata, gtdata):
         """
         Uses the model to create a prediction for the given data
 
@@ -123,9 +136,35 @@ class RUnet_test(object):
             net.labels: gtdata,
             net.keep_prob: 1.
         }
-        results = self.sess.run(net.predict, feed_dict=feed_dict)
-        return results
+        pd, pdsm = self.sess.run((net.predict, net.predict_softmax), feed_dict=feed_dict)
+        return pd, pdsm
     
+    def get_globalnet_predict_cost(self, iptdata, gtdata):
+        """
+        Uses the model to create a prediction for the given data
+
+        :param model_path: path to the model checkpoint to restore
+        :param x_test: Data to predict on. Shape [n, nx, ny, channels]
+        :returns prediction: The unet prediction Shape [n, px, py, labels] (px=nx-self.offset/2) 
+        """
+        
+        iptdata_shape = np.shape(iptdata)
+        batch_size, steps, nx, ny, channels = iptdata_shape
+        assert self.channels == channels
+        assert np.shape(gtdata) == (batch_size, steps, nx, ny, self.n_class)
+
+        netname = 'predict_net' + '_as_size_nx' + str(nx) + '_ny' + str(ny)
+        net = self.global_net
+        gtdata = crop_video_to_shape_with_offset(gtdata, net.offset)
+        feed_dict = {
+            net.inputs: iptdata,
+            net.labels: gtdata,
+            net.keep_prob: 1.
+        }
+        cost = self.sess.run(net.cost, feed_dict=feed_dict)
+        print ('predict cost as:' , cost)
+        return cost
+
     def get_predict_cost(self, iptdata, gtdata):
         """
         Uses the model to create a prediction for the given data
@@ -149,6 +188,7 @@ class RUnet_test(object):
             net.keep_prob: 1.
         }
         cost = self.sess.run(net.cost, feed_dict=feed_dict)
+        print ('predict cost as:' , cost)
         return cost
 
     def train_globalnet(self, iptdata, gtdata, optimizer="momentum", opt_kwargs={}):
@@ -188,16 +228,16 @@ class RUnet_test(object):
 
         netname = 'train_net'# + '_as_size_nx' + str(nx) + '_ny' + str(ny)
         net = self._create_net_and_copy_vars(netname, nx, ny)
-        gtdata = crop_video_to_shape_with_offset(gtdata, net.offset)
-        learning_rate = opt_kwargs.pop("learning_rate", 0.2)
-        decay_rate = opt_kwargs.pop("decay_rate", 0.95)
-        momentum = opt_kwargs.pop("momentum", 0.2)
-        rmsp_epsilon = opt_kwargs.pop("rmsp_epsilon", 0.1)
-        grad_applier = tf.train.RMSPropOptimizer(
-            learning_rate = learning_rate,
-            decay = decay_rate,
-            momentum = momentum, 
-            epsilon = rmsp_epsilon)
+        #gtdata = crop_video_to_shape_with_offset(gtdata, net.offset)
+        #learning_rate = opt_kwargs.pop("learning_rate", 0.1)
+        #decay_rate = opt_kwargs.pop("decay_rate", 0.95)
+        #momentum = opt_kwargs.pop("momentum", 0.2)
+        #rmsp_epsilon = opt_kwargs.pop("rmsp_epsilon", 0.1)
+        #grad_applier = tf.train.RMSPropOptimizer(
+        #    learning_rate = learning_rate,
+        #    decay = decay_rate,
+        #    momentum = momentum, 
+        #    epsilon = rmsp_epsilon)
         #for v in (tf.global_variables()):
         #    print(v)
         #    print(self.sess.run(v))
@@ -206,10 +246,10 @@ class RUnet_test(object):
             net.labels: gtdata,
             net.keep_prob: 1.0
         }
-        _opt, cost = self.sess.run((net.optimizer,net.cost), feed_dict=feed_dict)
-        print ('cost as:' , cost)
+        _opt, cost, accuracy, otherlabels, predict = self.sess.run((net.optimizer,net.cost, net.accuracy, net.otherlabels, net.predict), feed_dict=feed_dict)
+        #print ('cost as:' , cost)
         self._refresh_global_vars(net)
-        return cost
+        return cost, accuracy, otherlabels, predict
 
     def save(self, model_path):
         """
@@ -265,19 +305,38 @@ def get_image_summary(img, idx=0):
     return V
 
 def test_train():
-    from PIL import Image
     print('begin')
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
     iptdata, gtdata = dptest.get_data_one_batch(8)
-    iptdata = iptdata[:,0:1,:,:,:]
-    gtdata = gtdata[:,0:1,:,:,:]
+    iptdata = iptdata[:,0:10,:,:,:]
+    gtdata = gtdata[:,0:10,:,:,:]
 
     runet = RUnet_test('runet_test', global_nx = np.shape(iptdata)[2], global_ny = np.shape(iptdata)[3])
 
-    for i in range(100):
-        cost = runet.train_globalnet(iptdata, gtdata)
-        #predictresult = runet.get_predict_results(iptdata, gtdata)
-        print(i,'-------',cost,'\n')
+    import psutil
+    for i in range(10000):
+        print('--------------------------------------')
+        print('ite', i)
+        cost, accuracy, otherlabels, predict = runet.train(iptdata, gtdata)
+        print("cost:", cost, " accuracy:" , accuracy)
+        otherlabels = otherlabels[0]
+        predict = predict[0]
+        
+        img = np.append(util.oneHot_to_gray255(otherlabels[0]),util.oneHot_to_gray255(predict[0]), axis=0)
+        for step in range(1, 5):
+            nimg = np.append(util.oneHot_to_gray255(otherlabels[step]),util.oneHot_to_gray255(predict[step]), axis=0)
+            img = np.append(img, nimg, axis=1)
+        for proc in psutil.process_iter():
+            if proc.name() == "display":
+                proc.kill()
+        Image.fromarray(img).show(title='0,5')
+        print('--------------------------------------')
+        #pd,pdsm = runet.get_predict_softmax_results(iptdata, gtdata)
+        #print(pd[0][0][0][0])
+        #print(pdsm[0][0][0][0])
+        #from display import display_softmax_2class_data
+        #display_softmax_2class_data(pdsm,0,0)
+        #print(i,'-------',cost,'\n')
         #if (i % 10 == 0):
             #savename = '/home/cjl/model/20170723tf' + str(i)
             #runet.save(savename)
@@ -286,7 +345,7 @@ def test_train():
     print('========================================')
     runet.save('/home/cjl/model/20170723tf')
     #cost = runet.train(iptdata, gtdata)
-    print(cost)
+    #print(cost)
 
 def test_predict_results():
     from PIL import Image
@@ -300,7 +359,13 @@ def test_predict_results():
     print(results)
     print(type(results))
 
-
-
+def test_display():
+    from display import display_softmax_2class_data
+    dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
+    iptdata, gtdata = dptest.get_data_one_batch(8)
+    iptdata = iptdata[:,0:1,:,:,:]
+    gtdata = gtdata[:,0:1,:,:,:]
+    display_softmax_2class_data(gtdata,0,0)
+    
 if __name__ == '__main__':
     test_train()

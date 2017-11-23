@@ -5,6 +5,7 @@ import numpy as np
 class BasicACNetwork(object):
     def __init__(self,name):
         self._name = "ACnet_" + str(name)
+        self.vars = 0
 
     def sync_from(self, src_netowrk, name=None):
         '''

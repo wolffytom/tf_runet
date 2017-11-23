@@ -73,7 +73,7 @@ class VOT2016_Data_Provider():
         gtdata = gtdata.reshape((steps*nx*ny))
         gtdata = gtdata.astype(np.int32)
         gtdataonehot = np.zeros((steps*nx*ny, 2), dtype=np.float32)
-        gtdataonehot[np.arange(steps*nx*ny), gtdata] = 255
+        gtdataonehot[np.arange(steps*nx*ny), gtdata] = 1
         gtdataonehot = gtdataonehot.reshape((steps,nx,ny,2))
         return (inputdata, gtdataonehot)
 
@@ -81,6 +81,8 @@ class VOT2016_Data_Provider():
         inputdata, gtdataonehot = self.get_data(dataidx)
         inputdata = inputdata.reshape([1] + list(np.shape(inputdata)))
         gtdataonehot = gtdataonehot.reshape([1] + list(np.shape(gtdataonehot)))
+        # inputdata.dim:(batch_size = 1, steps, nx, ny, channals)
+        # gtdata.dim:(batch_size = 1, steps, nx, ny, nclass)
         return (inputdata, gtdataonehot)
 
     def __call__(self, batch_size = 1):
