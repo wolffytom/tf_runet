@@ -9,8 +9,13 @@ from layers import *
 from vot2016 import VOT2016_Data_Provider
 
 class Conv_Net(BasicACNetwork):
-    def __init__(self, name, nx, ny, channels, n_class, filter_size=3, cost="cross_entropy", cost_kwargs={}):
+    def __init__(self, name, nx, ny, channels, n_class, filter_size=3, cost="cross_entropy", cost_kwargs={}, isglobal = False, global_net = None):
         cost_kwargs["regularizer"] = 0.003
+        self.isglobal = isglobal
+        if self.isglobal:
+            self.variables = {}
+        else:
+            self.variables = self.global_net.variables
 
         self.name = name
         BasicACNetwork.__init__(self, self.name)
@@ -20,7 +25,7 @@ class Conv_Net(BasicACNetwork):
         self.channels = channels
         self.n_class = n_class
         self.filter_size = filter_size
-        self.variables = [] # for regularizer
+        #self.variables = [] # for regularizer
         with tf.variable_scope(self.name) as vs:
             self.inputs = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, channels])
             self.labels = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, n_class])
@@ -38,6 +43,9 @@ class Conv_Net(BasicACNetwork):
         
     def refresh_variables(self):
         self.vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.name)
+
+    def get_variables(self):
+        return 1111#here
 
     def _create_net_test(self):
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
