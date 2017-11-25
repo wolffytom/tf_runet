@@ -56,63 +56,28 @@ class RUnet_test(object):
         self.n_class = n_class
         self.summaries = kwargs.get("summaries", True)
 
+        self.optimizer = self._create_optimizer()
+        self._create_global_net(nx=global_nx, ny=global_ny)
         self.sess = tf.Session()
-        self.global_net_idx = 0
-        self.global_step = tf.Variable(0)
-        self._create_global_net_and_init_vars(nx=global_nx, ny=global_ny)
-        """
-        self.x = tf.placeholder("float", shape=[None, None, None, None, channels])
-        self.y = tf.placeholder("float", shape=[None, None, None, None, n_class])
-        self.keep_prob = tf.placeholder(tf.float32)  # dropout (keep probability)
-
-        logits, self.variables, self.offset = create_conv_r_net_test(
-            self.x , self.keep_prob, channels, n_class, **kwargs)
-
-        self.cost = self._get_cost(logits, cost, cost_kwargs)
-
-        self.gradients_node = tf.gradients(self.cost, self.variables)
-
-        self.cross_entropy = tf.reduce_mean(cross_entropy(tf.reshape(self.y, [-1, n_class]),
-                                                          tf.reshape(pixel_wise_softmax_2(logits), [-1, n_class])))
-
-        self.predicter = pixel_wise_softmax_2(logits)
-        self.correct_pred = tf.equal(
-            tf.argmax(self.predicter, 3), tf.argmax(self.y, 3))
-        self.accuracy = tf.reduce_mean(tf.cast(self.correct_pred, tf.float32))
-        """
     
-    def _create_global_net_and_init_vars(self, opt_kwargs={}, nx=100, ny=100):
-        self.global_net = Conv_Net(self.name + '.' + str(self.global_net_idx) + '.global_net', nx, ny, self.channels, self.n_class)
-        self.global_net_idx = self.global_net_idx + 1
-        #self.global_net.optimizer = tf.train.RMSPropOptimizer(learning_rate=0.001,**opt_kwargs).minimize(self.global_net.cost)
-        self.global_net.optimizer = self._create_optimizer(self.global_net.cost, args.optimizer)
-        self.global_net.refresh_variables()
-
-        #for v in (self.global_net.optimizer._g):
-        #    print(v, self.sess.run(v))
+    def _init_vars_random(self):
         self.sess.run(tf.global_variables_initializer())
     
-    def _create_net_and_copy_vars(self, name, nx, ny, opt_kwargs={}):
-        net = Conv_Net(self.name + '.' + str(self.global_net_idx) + '.' + name, nx, ny, self.channels, self.n_class)
-        self.global_net_idx = self.global_net_idx + 1
-        #net.optimizer = tf.train.AdamOptimizer(learning_rate=0.001,**opt_kwargs).minimize(net.cost,
-        #                                                                   global_step=self.global_step)
-        #net.optimizer = tf.train.RMSPropOptimizer(learning_rate=0.001,**opt_kwargs).minimize(net.cost)
-        net.optimizer = self._create_optimizer(net.cost, optimizer = args.optimizer)
-        net.refresh_variables()
-        self.sess.run(net.sync_from(self.global_net))
+    def _create_global_net(self, opt_kwargs={}, nx=100, ny=100):
+        self.global_net = Conv_Net('global_net', nx, ny, self.channels, self.n_class)
+        self.global_minimizer = self.optimizer.minimize(self.global_net.cost)
+    
+    def _create_net(self, name, nx, ny, opt_kwargs={}):
+        net = Conv_Net(name, nx, ny, self.channels, self.n_class)
         return net
 
-    def _create_optimizer(self, to_minimize, optimizer = "RMSProp"):
+    def _create_optimizer(self, optimizer = "Adam"):
         if optimizer == "RMSProp":
-            return tf.train.RMSPropOptimizer(learning_rate = args.learning_rate).minimize(to_minimize)
+            return tf.train.RMSPropOptimizer(learning_rate = args.learning_rate)
         elif optimizer == "Adam":
-            return tf.train.AdamOptimizer(learning_rate=args.learning_rate).minimize(to_minimize)
+            return tf.train.AdamOptimizer(learning_rate=args.learning_rate)
         else:
             return None
-
-    def _refresh_global_vars(self, net):
-        self.sess.run(self.global_net.sync_from(net))
     
     def get_predict_softmax_results(self, iptdata, gtdata):
         """
@@ -227,28 +192,19 @@ class RUnet_test(object):
         assert self.channels == channels
 
         netname = 'train_net'# + '_as_size_nx' + str(nx) + '_ny' + str(ny)
-        net = self._create_net_and_copy_vars(netname, nx, ny)
-        #gtdata = crop_video_to_shape_with_offset(gtdata, net.offset)
-        #learning_rate = opt_kwargs.pop("learning_rate", 0.1)
-        #decay_rate = opt_kwargs.pop("decay_rate", 0.95)
-        #momentum = opt_kwargs.pop("momentum", 0.2)
-        #rmsp_epsilon = opt_kwargs.pop("rmsp_epsilon", 0.1)
-        #grad_applier = tf.train.RMSPropOptimizer(
-        #    learning_rate = learning_rate,
-        #    decay = decay_rate,
-        #    momentum = momentum, 
-        #    epsilon = rmsp_epsilon)
-        #for v in (tf.global_variables()):
-        #    print(v)
-        #    print(self.sess.run(v))
+        net = self._create_net(netname, nx, ny)
         feed_dict = {
             net.inputs: iptdata,
             net.labels: gtdata,
             net.keep_prob: 1.0
         }
-        _opt, cost, accuracy, otherlabels, predict = self.sess.run((net.optimizer,net.cost, net.accuracy, net.otherlabels, net.predict), feed_dict=feed_dict)
-        #print ('cost as:' , cost)
-        self._refresh_global_vars(net)
+        _opt, cost, accuracy, otherlabels, predict = self.sess.run((
+            self.optimizer.minimize(net.cost),
+            net.cost,
+            net.accuracy, 
+            net.otherlabels,
+            net.predict), feed_dict=feed_dict)
+        print ('cost as:' , cost)
         return cost, accuracy, otherlabels, predict
 
     def save(self, model_path):
@@ -311,7 +267,11 @@ def test_train():
     iptdata = iptdata[:,0:10,:,:,:]
     gtdata = gtdata[:,0:10,:,:,:]
 
-    runet = RUnet_test('runet_test', global_nx = np.shape(iptdata)[2], global_ny = np.shape(iptdata)[3])
+    runet = RUnet_test('runet_test')
+    runet._init_vars_random()
+    for v in tf.global_variables():
+        print(v)
+
 
     import psutil
     for i in range(10000):

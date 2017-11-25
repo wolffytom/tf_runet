@@ -9,44 +9,31 @@ from layers import *
 from vot2016 import VOT2016_Data_Provider
 
 class Conv_Net(BasicACNetwork):
-    def __init__(self, name, nx, ny, channels, n_class, filter_size=3, cost="cross_entropy", cost_kwargs={}, isglobal = False, global_net = None):
+    def __init__(self, name, nx, ny, channels, n_class, filter_size=3, cost="cross_entropy", cost_kwargs={}):
         cost_kwargs["regularizer"] = 0.003
-        self.isglobal = isglobal
-        if self.isglobal:
-            self.variables = {}
-        else:
-            self.variables = self.global_net.variables
-
         self.name = name
-        BasicACNetwork.__init__(self, self.name)
+        #BasicACNetwork.__init__(self, self.name)
         self.nx = nx
         self.ny = ny
         self._calculate_offset()
         self.channels = channels
         self.n_class = n_class
         self.filter_size = filter_size
-        #self.variables = [] # for regularizer
-        with tf.variable_scope(self.name) as vs:
+        self.variables = [] # for regularizer
+        with tf.variable_scope('RU_Net', reuse = tf.AUTO_REUSE):
             self.inputs = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, channels])
             self.labels = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, n_class])
+            self.keep_prob = tf.placeholder(dtype = tf.float32)
             self.firstframe = self.inputs[:,:1,:,:,:]
             self.otherframes = self.inputs[:,1:,:,:,:]
             self.firstlabel = self.labels[:,:1,:,:,:]
             self.otherlabels = self.labels[:,1:,self.offsetx:self.offsetx + self.sx,self.offsety:self.offsety + self.sy,:]
-            self.keep_prob = tf.placeholder(dtype = tf.float32)
             self.predict, self.variables = self._create_ru_net()
             self.predict_softmax = tf.nn.softmax(self.predict)
-            #self.cost = self._get_cross_entropy_cost(self.predict, self.otherlabels)
             self.cost = self._get_cost(self.predict, self.otherlabels, "cross_entropy_with_class_ave_weights", cost_kwargs)
             self.accuracy = self._get_accuracy(self.predict, self.otherlabels)
-        self.optimizer = None
-        
-    def refresh_variables(self):
-        self.vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, self.name)
 
-    def get_variables(self):
-        return 1111#here
-
+    #@test
     def _create_net_test(self):
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
         batch_size = tf.shape(self.inputs)[0]
@@ -55,10 +42,10 @@ class Conv_Net(BasicACNetwork):
         
         in_size = 1000
         size = in_size
-        with tf.variable_scope('r_net_test') as vs:
+        with tf.variable_scope('r_net_test', reuse = tf.AUTO_REUSE) as vs:
             in_node = block_c_rnn_zero_init_without_size(self.nx, self.ny, in_node, self.channels, self.channels)
         
-        with tf.variable_scope('conv1') as vs:
+        with tf.variable_scope('conv1', reuse = tf.AUTO_REUSE) as vs:
             stddev = np.sqrt(2 / (self.filter_size**2 * self.channels))
             w1 = weight_variable([self.filter_size, self.filter_size, self.channels, self.n_class], stddev)
             b1 = bias_variable([self.n_class])
@@ -72,12 +59,12 @@ class Conv_Net(BasicACNetwork):
 
     #@static method
     def _reshape_to_4dim(self, _input):
-        with tf.variable_scope('reshape_to_4dim') as vs:
+        with tf.variable_scope('reshape_to_4dim', reuse = tf.AUTO_REUSE):
             shape = tf.shape(_input)
             return tf.reshape(_input, shape=[tf.to_int32(shape[0]*shape[1]), shape[2],shape[3],shape[4]])
     #@static method
     def _reshape_to_5dim(self, _input, batch_size, steps):
-        with tf.variable_scope('reshape_to_5dim') as vs:
+        with tf.variable_scope('reshape_to_5dim', reuse = tf.AUTO_REUSE):
             shape = tf.shape(_input)
             return tf.reshape(_input, shape=[batch_size, steps, shape[1],shape[2],shape[3]])
 
@@ -88,29 +75,26 @@ class Conv_Net(BasicACNetwork):
         return in_node, variables
 
     def _block_rnn_zero_init(self, in_node, batch_size, steps, sx, sy, channels):
-        #print(in_node)
         in_node = self._reshape_to_5dim(in_node, batch_size, steps)
-        #print(in_node)
         in_node = block_c_rnn_zero_init_without_size(sx, sy, in_node, channels, channels)
-        #print(in_node)
         in_node = self._reshape_to_4dim(in_node)
-        #print(in_node)
         return in_node
 
-    def _fc_variable(self, weight_shape):
-        with tf.variable_scope('FC_var') as vs:
-            d = 1.0 / np.sqrt(weight_shape[0])
-            bias_shape = [weight_shape[1]]
-            bias = tf.get_variable(name = 'b', shape = bias_shape)
-            weight = tf.get_variable(name = 'w', shape = weight_shape)
-        return weight, bias
-
+    # test
     def _create_fc_net(self, layers=1, features_root=16, filter_size=3, pool_size=2, summaries=True):
+        def _fc_variable(weight_shape):
+            with tf.variable_scope('FC_var', reuse = tf.AUTO_REUSE) as vs:
+                d = 1.0 / np.sqrt(weight_shape[0])
+                bias_shape = [weight_shape[1]]
+                bias = tf.get_variable(name = 'b', shape = bias_shape)
+                weight = tf.get_variable(name = 'w', shape = weight_shape)
+            return weight, bias
+
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
         batch_size = tf.shape(self.inputs)[0]
         steps = tf.shape(self.inputs)[1]
         in_node = tf.reshape(self.inputs, shape=[-1, self.channels])
-        w1,b1 = self._fc_variable([self.channels, self.n_class])
+        w1,b1 = _fc_variable([self.channels, self.n_class])
         output_map = tf.nn.relu(tf.matmul(in_node, w1) + b1)
         output_map = tf.reshape(output_map, [batch_size, steps, self.nx, self.ny, self.n_class])
         
@@ -275,7 +259,7 @@ class Conv_Net(BasicACNetwork):
                     initstates[name_crnn] = in_part
                     return in_part
                 else:
-                    with tf.variable_scope('crnn-'+name_crnn) as vs:
+                    with tf.variable_scope('crnn-'+name_crnn, reuse = tf.AUTO_REUSE) as vs:
                         out_part, block_rnn_vars = self._block_rnn(in_part, batch_size, steps, sx, sy, in_part_channels, out_part_channels, initstates[name_crnn])
                         variables.extend(block_rnn_vars)
                         return out_part
@@ -285,7 +269,7 @@ class Conv_Net(BasicACNetwork):
             
             # down layers
             for layer in range(0, layers):
-                with tf.variable_scope('down_layer-'+str(layer)) as vs:
+                with tf.variable_scope('down_layer-'+str(layer), reuse = tf.AUTO_REUSE) as vs:
                     features = 2**layer*features_root
                     stddev = np.sqrt(2 / (filter_size**2 * features))
 
@@ -298,10 +282,10 @@ class Conv_Net(BasicACNetwork):
                         in_node = block_rnn_part('down'+str(layer)+'_in', in_node, in_node_channels)
             
                     # conv vars
-                    w1 = weight_variable([filter_size, filter_size, in_node_channels, features], stddev)
-                    w2 = weight_variable([filter_size, filter_size, features, features], stddev)
-                    b1 = bias_variable([features])
-                    b2 = bias_variable([features])
+                    w1 = weight_variable('w1', [filter_size, filter_size, in_node_channels, features], stddev)
+                    w2 = weight_variable('w2', [filter_size, filter_size, features, features], stddev)
+                    b1 = bias_variable('b1', [features])
+                    b2 = bias_variable('b2', [features])
                     variables.extend((w1,b1,w2,b2))
         
                     # conv1 + block_rnn
@@ -333,17 +317,17 @@ class Conv_Net(BasicACNetwork):
         
             # up layers
             for layer in range(layers-2, -1, -1):
-                with tf.variable_scope('up-'+str(layer)) as vs:
+                with tf.variable_scope('up-'+str(layer), reuse = tf.AUTO_REUSE) as vs:
                     features = 2**(layer+1)*features_root
                     stddev = np.sqrt(2 / (filter_size**2 * features))
 
                     # conv vars
-                    wd = weight_variable_devonc([pool_size, pool_size, features//2, features], stddev)
-                    bd = bias_variable([features//2])
-                    w1 = weight_variable([filter_size, filter_size, features, features//2], stddev)
-                    w2 = weight_variable([filter_size, filter_size, features//2, features//2], stddev)
-                    b1 = bias_variable([features//2])
-                    b2 = bias_variable([features//2])
+                    wd = weight_variable('wd', [pool_size, pool_size, features//2, features], stddev)
+                    bd = bias_variable('bd', [features//2])
+                    w1 = weight_variable('w1', [filter_size, filter_size, features, features//2], stddev)
+                    w2 = weight_variable('w2', [filter_size, filter_size, features//2, features//2], stddev)
+                    b1 = bias_variable('b1', [features//2])
+                    b2 = bias_variable('b2', [features//2])
                     variables.extend((wd,bd,w1,w2,b1,b2))
 
                     # block_rnn for input
@@ -378,8 +362,8 @@ class Conv_Net(BasicACNetwork):
             if True == INIT:
                 return None
             else:
-                weight = weight_variable([1, 1, features_root, self.n_class], stddev)
-                bias = bias_variable([self.n_class])
+                weight = weight_variable('weight', [1, 1, features_root, self.n_class], stddev)
+                bias = bias_variable('bias', [self.n_class])
                 variables.extend((weight, bias))
                 conv = conv2d(in_node, weight, tf.constant(1.0))
                 output_map = tf.nn.relu(conv + bias)
@@ -388,123 +372,12 @@ class Conv_Net(BasicACNetwork):
                 return output_map
 
         # calculate the initstates
-        with tf.variable_scope('init_frame') as vs:
+        with tf.variable_scope('init_frame', reuse = tf.AUTO_REUSE) as vs:
             _ru_part(True, first)
 
         # process other frames
-        with tf.variable_scope('other_frames') as vs:
+        with tf.variable_scope('other_frames', reuse = tf.AUTO_REUSE) as vs:
             return _ru_part(False, self.otherframes), variables
-
-    def _ru_net_rnn():
-        #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))
-        batch_size = tf.shape(self.inputs)[0]
-        steps = tf.shape(self.inputs)[1]
-        in_node = self.inputs
-
-        convs = []
-        pools = OrderedDict()
-        deconv = OrderedDict()
-        dw_h_convs = OrderedDict()
-        up_h_convs = OrderedDict()
-    
-        in_size = 1000
-        size = in_size
-        sx = self.nx
-        sy = self.ny
-        in_node = self._reshape_to_4dim(in_node)
-        # down layers
-        for layer in range(0, layers):
-            features = 2**layer*features_root
-            stddev = np.sqrt(2 / (filter_size**2 * features))
-            if layer == 0:
-                w1 = weight_variable([filter_size, filter_size, self.channels, features], stddev)
-                in_node_channels = self.channels
-            else:
-                w1 = weight_variable([filter_size, filter_size, features//2, features], stddev)
-                in_node_channels = features //2
-            
-            in_node = self._block_rnn_zero_init(in_node, batch_size, steps, sx, sy, in_node_channels)
-            
-            w2 = weight_variable([filter_size, filter_size, features, features], stddev)
-            b1 = bias_variable([features])
-            b2 = bias_variable([features])
-        
-            conv1 = conv2d(in_node, w1, self.keep_prob)
-            tmp_h_conv = tf.nn.relu(conv1 + b1)
-
-            tmp_h_conv = self._block_rnn_zero_init(tmp_h_conv, batch_size, steps, sx-2, sy-2, features)
-
-            conv2 = conv2d(tmp_h_conv, w2, self.keep_prob)
-            tmp_h_conv = tf.nn.relu(conv2 + b2)
-
-            dw_h_convs[layer] = self._block_rnn_zero_init(tmp_h_conv, batch_size, steps, sx-4, sy-4, features)
-        
-            #weights.append((w1, w2))
-            #biases.append((b1, b2))
-            convs.append((conv1, conv2))
-        
-            size -= 4
-            sx -= 4
-            sy -= 4
-            if layer < layers-1:
-                pools[layer] = max_pool(dw_h_convs[layer], pool_size)
-                in_node = pools[layer]
-                size /= 2
-                sx = sx//2
-                sy = sy//2
-        
-        in_node = dw_h_convs[layers-1]
-        
-        # up layers
-        for layer in range(layers-2, -1, -1):
-
-            features = 2**(layer+1)*features_root
-            stddev = np.sqrt(2 / (filter_size**2 * features))
-
-            in_node = self._block_rnn_zero_init(in_node, batch_size, steps, sx, sy, features)
-        
-            wd = weight_variable_devonc([pool_size, pool_size, features//2, features], stddev)
-            bd = bias_variable([features//2])
-            h_deconv = tf.nn.relu(deconv2d(in_node, wd, pool_size) + bd)
-            h_deconv_concat = crop_and_concat(dw_h_convs[layer], h_deconv)
-            deconv[layer] = h_deconv_concat
-        
-            w1 = weight_variable([filter_size, filter_size, features, features//2], stddev)
-            w2 = weight_variable([filter_size, filter_size, features//2, features//2], stddev)
-            b1 = bias_variable([features//2])
-            b2 = bias_variable([features//2])
-        
-            conv1 = conv2d(h_deconv_concat, w1, self.keep_prob)
-            h_conv = tf.nn.relu(conv1 + b1)
-            sx = sx*2-2
-            sy = sy*2-2
-
-            h_conv = self._block_rnn_zero_init(h_conv, batch_size, steps, sx, sy, features//2)
-
-            conv2 = conv2d(h_conv, w2, self.keep_prob)
-            in_node = tf.nn.relu(conv2 + b2)
-            up_h_convs[layer] = in_node
-            sx -= 2
-            sy -= 2
-
-            #weights.append((w1, w2))
-            #biases.append((b1, b2))
-            convs.append((conv1, conv2))
-        
-            size *= 2
-            size -= 4
-
-        # Output Map
-        in_node = self._block_rnn_zero_init(in_node, batch_size, steps, sx, sy, features_root)
-
-        weight = weight_variable([1, 1, features_root, self.n_class], stddev)
-        bias = bias_variable([self.n_class])
-        conv = conv2d(in_node, weight, tf.constant(1.0))
-        output_map = tf.nn.relu(conv + bias)
-        up_h_convs["out"] = output_map
-        output_map = self._reshape_to_5dim(output_map, batch_size, steps)
-        
-        return output_map, int(in_size - size)
 
     def _create_ru_net_zero_init(self, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
         #x_image = tf.reshape(x, tf.stack([batch_size, steps, nx, ny, channels]))

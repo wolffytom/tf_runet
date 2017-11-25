@@ -24,9 +24,9 @@ def block_c_rnn_without_size(nx, ny, x, x_channels, initstate, out_state_channel
     #steps = tf.shape(x)[1]
 
     variables = []
-    with tf.variable_scope('block_c_rnn_without_size') as vs:
+    with tf.variable_scope('block_c_rnn_without_size', reuse = tf.AUTO_REUSE):
         x = tf.reshape(x, shape=[tf.shape(x)[0], tf.shape(x)[1], nx*ny*x_channels])
-        initstate = tf.reshape(initstate, shape=[tf.shape(x)[0], nx*ny*out_state_channels], name='initstate')
+        initstate = tf.reshape(initstate, shape=[tf.shape(x)[0], nx*ny*out_state_channels], name='initstate_reshape')
         rnnCell = block_C_RNNCell(nx,ny,x_channels,out_state_channels)
         variables = variables + rnnCell.vars
         out, _statei = tf.nn.dynamic_rnn(
@@ -120,9 +120,9 @@ class block_C_RNNCell(rnn.RNNCell):
         self.out_channels = out_channels
         self.keep_prob = keep_prob
         self.vars = []
-        with tf.variable_scope('block_C_RNNCell') as vs:
-            self._weight = weight_variable([1, 1, in_channels + out_channels, out_channels])
-            self._bias = bias_variable([out_channels])
+        with tf.variable_scope('block_C_RNNCell', reuse = tf.AUTO_REUSE) as vs:
+            self._weight = weight_variable('block_C_RNNCell_w1', [1, 1, in_channels + out_channels, out_channels])
+            self._bias = bias_variable('block_C_RNNCell_b1', [out_channels])
             self.vars.append(self._weight)
             self.vars.append(self._bias)
 
