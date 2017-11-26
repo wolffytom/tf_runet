@@ -145,7 +145,7 @@ def test_crop_video_to_shape():
     #a = a[:,1:2]
     print(np.shape(a))
 
-def oneHot_to_gray255(one_hot_img):
+def oneHot_to_gray255_old(one_hot_img):
     import numpy as np
     nx, ny, n_class = np.shape(one_hot_img)
     result = np.zeros((nx, ny) ,dtype=np.uint8)
@@ -159,6 +159,18 @@ def oneHot_to_gray255(one_hot_img):
                 result[ix][iy] = 0
             else:
                 result[ix][iy] = 127
+    return result
+
+def oneHot_to_gray255(one_hot_img):
+    import numpy as np
+    nx, ny, n_class = np.shape(one_hot_img)
+    result = np.zeros((nx, ny) ,dtype=np.uint8)
+    assert( n_class == 2 )
+    for ix in range(nx):
+        for iy in range(ny):
+            b = one_hot_img[ix][iy]
+            assert b[0] >= 0 and b[0] <= 1
+            result[ix][iy] = int(255.0 * b[0])
     return result
 
 if __name__ == '__main__':
