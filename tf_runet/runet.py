@@ -269,9 +269,6 @@ def test_train():
 
     runet = RUnet_test('runet_test')
     runet._init_vars_random()
-    for v in tf.global_variables():
-        print(v)
-
 
     import psutil
     for i in range(10000):

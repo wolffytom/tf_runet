@@ -30,7 +30,7 @@ class Conv_Net(BasicACNetwork):
             self.otherlabels = self.labels[:,1:,self.offsetx:self.offsetx + self.sx,self.offsety:self.offsety + self.sy,:]
             self.predict, self.variables = self._create_ru_net()
             self.predict_softmax = tf.nn.softmax(self.predict)
-            self.cost = self._get_cost(self.predict, self.otherlabels, "cross_entropy_with_class_ave_weights", cost_kwargs)
+            self.cost = self._get_cost(self.predict, self.otherlabels, "cross_entropy", cost_kwargs)
             self.accuracy = self._get_accuracy(self.predict, self.otherlabels)
 
     #@test
@@ -369,6 +369,7 @@ class Conv_Net(BasicACNetwork):
                 output_map = tf.nn.relu(conv + bias)
                 up_h_convs["out"] = output_map
                 output_map = self._reshape_to_5dim(output_map, batch_size, steps)
+                tf.sparse_softmax(output_map)
                 return output_map
 
         # calculate the initstates
