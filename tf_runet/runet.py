@@ -286,23 +286,12 @@ def test_train():
         for proc in psutil.process_iter():
             if proc.name() == "display":
                 proc.kill()
-        Image.fromarray(img).show(title='0,5')
+        #Image.fromarray(img).show(title='0,5')
         print('--------------------------------------')
-        #pd,pdsm = runet.get_predict_softmax_results(iptdata, gtdata)
-        #print(pd[0][0][0][0])
-        #print(pdsm[0][0][0][0])
-        #from display import display_softmax_2class_data
-        #display_softmax_2class_data(pdsm,0,0)
-        #print(i,'-------',cost,'\n')
-        #if (i % 10 == 0):
-            #savename = '/home/cjl/model/20170723tf' + str(i)
-            #runet.save(savename)
-        #if (i % 20 == 0):
-            #(Image.fromarray(util.oneHot_to_gray255(predictresult[0][5]))).show(title='0,5')
+        if (i % 50 == 0):
+            filename = '/home/cjl/models/20171127/train' + str(i)
+            runet.save(filename)
     print('========================================')
-    runet.save('/home/cjl/model/20170723tf')
-    #cost = runet.train(iptdata, gtdata)
-    #print(cost)
 
 def test_predict_results():
     from PIL import Image
