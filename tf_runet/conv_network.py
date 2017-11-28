@@ -253,15 +253,20 @@ class Conv_Net(BasicACNetwork):
             in_node_channels = -1
             in_node = self._reshape_to_4dim(in_node)
 
-            def block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, out_part_channels):
-                if True == INIT:
-                    initstates[name_crnn] = in_part
-                    return in_part
+            def block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, out_part_channels, lstm = True):
+                if lstm is True:
+                    state_channels = out_part_channels * 2
+                    if True == INIT:
+
                 else:
-                    with tf.variable_scope('crnn-'+name_crnn, reuse = tf.AUTO_REUSE) as vs:
-                        out_part, block_rnn_vars = self._block_rnn(in_part, batch_size, steps, sx, sy, in_part_channels, out_part_channels, initstates[name_crnn])
-                        variables.extend(block_rnn_vars)
-                        return out_part
+                    if True == INIT:
+                        initstates[name_crnn] = in_part
+                        return in_part
+                    else:
+                        with tf.variable_scope('crnn-'+name_crnn, reuse = tf.AUTO_REUSE) as vs:
+                            out_part, block_rnn_vars = self._block_rnn(in_part, batch_size, steps, sx, sy, in_part_channels, out_part_channels, initstates[name_crnn])
+                            variables.extend(block_rnn_vars)
+                            return out_part
             
             def block_rnn_part(name_crnn, in_part, in_part_channels):
                 return block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, in_part_channels)
