@@ -79,119 +79,32 @@ class RUnet_test(object):
         else:
             return None
     
-    def get_predict_softmax_results(self, iptdata, gtdata):
-        """
-        Uses the model to create a prediction for the given data
-
-        :param model_path: path to the model checkpoint to restore
-        :param x_test: Data to predict on. Shape [n, nx, ny, channels]
-        :returns prediction: The unet prediction Shape [n, px, py, labels] (px=nx-self.offset/2) 
-        """
-        
-        iptdata_shape = np.shape(iptdata)
-        batch_size, steps, nx, ny, channels = iptdata_shape
-        assert self.channels == channels
-        assert np.shape(gtdata) == (batch_size, steps, nx, ny, self.n_class)
-
-        netname = 'predict_net' + '_as_size_nx' + str(nx) + '_ny' + str(ny)
-        net = self._create_net_and_copy_vars(netname, nx, ny)
-        gtdata = crop_video_to_shape_with_offset(gtdata, net.offset)
-        feed_dict = {
-            net.inputs: iptdata,
-            net.labels: gtdata,
-            net.keep_prob: 1.
-        }
-        pd, pdsm = self.sess.run((net.predict, net.predict_softmax), feed_dict=feed_dict)
-        return pd, pdsm
-    
-    def get_globalnet_predict_cost(self, iptdata, gtdata):
-        """
-        Uses the model to create a prediction for the given data
-
-        :param model_path: path to the model checkpoint to restore
-        :param x_test: Data to predict on. Shape [n, nx, ny, channels]
-        :returns prediction: The unet prediction Shape [n, px, py, labels] (px=nx-self.offset/2) 
-        """
-        
-        iptdata_shape = np.shape(iptdata)
-        batch_size, steps, nx, ny, channels = iptdata_shape
-        assert self.channels == channels
-        assert np.shape(gtdata) == (batch_size, steps, nx, ny, self.n_class)
-
-        netname = 'predict_net' + '_as_size_nx' + str(nx) + '_ny' + str(ny)
-        net = self.global_net
-        gtdata = crop_video_to_shape_with_offset(gtdata, net.offset)
-        feed_dict = {
-            net.inputs: iptdata,
-            net.labels: gtdata,
-            net.keep_prob: 1.
-        }
-        cost = self.sess.run(net.cost, feed_dict=feed_dict)
-        print ('predict cost as:' , cost)
-        return cost
-
-    def get_predict_cost(self, iptdata, gtdata):
-        """
-        Uses the model to create a prediction for the given data
-
-        :param model_path: path to the model checkpoint to restore
-        :param x_test: Data to predict on. Shape [n, nx, ny, channels]
-        :returns prediction: The unet prediction Shape [n, px, py, labels] (px=nx-self.offset/2) 
-        """
-        
-        iptdata_shape = np.shape(iptdata)
-        batch_size, steps, nx, ny, channels = iptdata_shape
-        assert self.channels == channels
-        assert np.shape(gtdata) == (batch_size, steps, nx, ny, self.n_class)
-
-        netname = 'predict_net' + '_as_size_nx' + str(nx) + '_ny' + str(ny)
-        net = self._create_net_and_copy_vars(netname, nx, ny)
-        gtdata = crop_video_to_shape_with_offset(gtdata, net.offset)
-        feed_dict = {
-            net.inputs: iptdata,
-            net.labels: gtdata,
-            net.keep_prob: 1.
-        }
-        cost = self.sess.run(net.cost, feed_dict=feed_dict)
-        print ('predict cost as:' , cost)
-        return cost
-
-    def train_globalnet(self, iptdata, gtdata, optimizer="momentum", opt_kwargs={}):
+    def predict(self, iptdata, gtdata):
         iptdata_shape = np.shape(iptdata)
         batch_size, steps, nx, ny, channels = iptdata_shape
         assert self.channels == channels
 
-        netname = 'train_net'# + '_as_size_nx' + str(nx) + '_ny' + str(ny)
-        net = self.global_net#self._create_net_and_copy_vars(netname, nx, ny)
-        gtdata = crop_video_to_shape_with_offset(gtdata, net.offset)
-        learning_rate = opt_kwargs.pop("learning_rate", 0.2)
-        decay_rate = opt_kwargs.pop("decay_rate", 0.95)
-        momentum = opt_kwargs.pop("momentum", 0.2)
-        rmsp_epsilon = opt_kwargs.pop("rmsp_epsilon", 0.1)
-        grad_applier = tf.train.RMSPropOptimizer(
-            learning_rate = learning_rate,
-            decay = decay_rate,
-            momentum = momentum, 
-            epsilon = rmsp_epsilon)
-        #for v in (tf.global_variables()):
-        #    print(v)
-        #    print(self.sess.run(v))
+        netname = 'predict_net'
+        net = self._create_net(netname, nx, ny)
         feed_dict = {
             net.inputs: iptdata,
             net.labels: gtdata,
             net.keep_prob: 1.0
         }
-        _opt, cost = self.sess.run((net.optimizer,net.cost), feed_dict=feed_dict)
+        cost, accuracy, otherlabels, predict = self.sess.run((
+            net.cost,
+            net.accuracy, 
+            net.otherlabels,
+            net.predict), feed_dict=feed_dict)
         print ('cost as:' , cost)
-        #self._refresh_global_vars(net)
-        return cost
+        return cost, accuracy, otherlabels, predict
 
     def train(self, iptdata, gtdata, optimizer="momentum", opt_kwargs={}):
         iptdata_shape = np.shape(iptdata)
         batch_size, steps, nx, ny, channels = iptdata_shape
         assert self.channels == channels
 
-        netname = 'train_net'# + '_as_size_nx' + str(nx) + '_ny' + str(ny)
+        netname = 'train_net'
         net = self._create_net(netname, nx, ny)
         feed_dict = {
             net.inputs: iptdata,
@@ -204,7 +117,6 @@ class RUnet_test(object):
             net.accuracy, 
             net.otherlabels,
             net.predict), feed_dict=feed_dict)
-        print ('cost as:' , cost)
         return cost, accuracy, otherlabels, predict
 
     def save(self, model_path):
@@ -220,7 +132,7 @@ class RUnet_test(object):
         print("Model saved in file: %s" % save_path)
         return save_path
 
-    def restore(self, sess, model_path):
+    def restore(self, model_path):
         """
         Restores a session from a checkpoint
 
@@ -229,7 +141,7 @@ class RUnet_test(object):
         """
 
         saver = tf.train.Saver()
-        saver.restore(sess, model_path)
+        saver.restore(self.sess, model_path)
         logging.info("Model restored from file: %s" % model_path)
 
 def error_rate(predictions, labels):
@@ -241,7 +153,6 @@ def error_rate(predictions, labels):
         100.0 *
         np.sum(np.argmax(predictions, 3) == np.argmax(labels, 3)) /
         (predictions.shape[0] * predictions.shape[1] * predictions.shape[2]))
-
 
 def get_image_summary(img, idx=0):
     """
@@ -260,7 +171,7 @@ def get_image_summary(img, idx=0):
     V = tf.reshape(V, tf.stack((-1, img_w, img_h, 1)))
     return V
 
-def test_train():
+def train(model_path = None):
     print('begin')
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
     iptdata, gtdata = dptest.get_data_one_batch(8)
@@ -268,7 +179,10 @@ def test_train():
     gtdata = gtdata[:,0:10,:,:,:]
 
     runet = RUnet_test('runet_test')
-    runet._init_vars_random()
+    if model_path is None:
+        runet._init_vars_random()
+    else:
+        runet.restore(model_path)
 
     import psutil
     for i in range(10000):
@@ -286,32 +200,33 @@ def test_train():
         for proc in psutil.process_iter():
             if proc.name() == "display":
                 proc.kill()
-        #Image.fromarray(img).show(title='0,5')
+        Image.fromarray(img).show(title='0,5')
         print('--------------------------------------')
         if (i % 50 == 0):
-            filename = '/home/cjl/models/20171127/train' + str(i)
+            filename = '/home/cjl/models/20171128/train' + str(i)
             runet.save(filename)
     print('========================================')
 
-def test_predict_results():
-    from PIL import Image
-    runet = RUnet_test('runet_test')
+def predict(model_path):
+    print('begin')
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
     iptdata, gtdata = dptest.get_data_one_batch(8)
-    results = runet.get_predict_results(iptdata, gtdata)
-    results = util.oneHot_to_gray255(results[0][5])
-    im_t_PIL = Image.fromarray(results)
-    im_t_PIL.show()
-    print(results)
-    print(type(results))
+    iptdata = iptdata[:,0:10,:,:,:]
+    gtdata = gtdata[:,0:10,:,:,:]
 
-def test_display():
-    from display import display_softmax_2class_data
-    dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
-    iptdata, gtdata = dptest.get_data_one_batch(8)
-    iptdata = iptdata[:,0:1,:,:,:]
-    gtdata = gtdata[:,0:1,:,:,:]
-    display_softmax_2class_data(gtdata,0,0)
+    runet = RUnet_test('runet_test')
+    runet.restore(model_path)
+
+    cost, accuracy, otherlabels, predict = runet.predict(iptdata, gtdata)
+    print("cost:", cost, " accuracy:" , accuracy)
+    otherlabels = otherlabels[0]
+    predict = predict[0]
+        
+    img = np.append(util.oneHot_to_gray255(otherlabels[0]),util.oneHot_to_gray255(predict[0]), axis=0)
+    for step in range(1, 5):
+        nimg = np.append(util.oneHot_to_gray255(otherlabels[step]),util.oneHot_to_gray255(predict[step]), axis=0)
+        img = np.append(img, nimg, axis=1)
+    Image.fromarray(img).show(title='0,5')
     
 if __name__ == '__main__':
-    test_train()
+    train('/home/cjl/models/20171127/train200')
