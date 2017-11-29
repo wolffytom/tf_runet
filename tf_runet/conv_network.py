@@ -5,6 +5,7 @@ from collections import OrderedDict
 from basic_network import BasicACNetwork
 from block_crnn import block_c_rnn_zero_init_without_size
 from block_crnn import block_c_rnn_without_size
+from block_crnn import block_c_lstmnn
 from layers import *
 from vot2016 import VOT2016_Data_Provider
 
@@ -67,9 +68,12 @@ class Conv_Net(BasicACNetwork):
             shape = tf.shape(_input)
             return tf.reshape(_input, shape=[batch_size, steps, shape[1],shape[2],shape[3]])
 
-    def _block_rnn(self, in_node, batch_size, steps, sx, sy, in_channels, out_state_channels, initstate):
+    def _block_rnn(self, in_node, batch_size, steps, sx, sy, in_channels, out_channels, initstate, LSTM):
         in_node = self._reshape_to_5dim(in_node, batch_size, steps)
-        in_node, variables = block_c_rnn_without_size(sx, sy, in_node, in_channels, initstate, out_state_channels)
+        if LSTM is True:
+            in_node, variables = block_c_lstmnn(sx, sy, in_node, in_channels, initstate, out_channels)
+        else:
+            in_node, variables = block_c_rnn_without_size(sx, sy, in_node, in_channels, initstate, out_channels)
         in_node = self._reshape_to_4dim(in_node)
         return in_node, variables
 
@@ -233,8 +237,9 @@ class Conv_Net(BasicACNetwork):
         self.sy = sy
         self.offsety = (self.ny - self.sy) // 2
 
-    def _create_ru_net(self, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True):
+    def _create_ru_net(self, layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True, LSTM = True):
         first = tf.concat([self.firstframe,self.firstlabel], axis = 4)
+        # first.shape is [batch_size, 1, nx, ny, self.channels + self.n_class]
         initstates = {}
         variables = []
 
@@ -253,20 +258,24 @@ class Conv_Net(BasicACNetwork):
             in_node_channels = -1
             in_node = self._reshape_to_4dim(in_node)
 
-            def block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, out_part_channels, lstm = True):
-                if lstm is True:
-                    state_channels = out_part_channels * 2
-                    if True == INIT:
-
+            def block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, out_part_channels):
+                if INIT is True:
+                    #init_part.shape = [batch_size, 1, sx, sy, in_part_channels]
+                    initstates[name_crnn] = tf.reshape(in_part, [batch_size, sx, sy, in_part_channels])
+                    return in_part
                 else:
-                    if True == INIT:
-                        initstates[name_crnn] = in_part
-                        return in_part
-                    else:
-                        with tf.variable_scope('crnn-'+name_crnn, reuse = tf.AUTO_REUSE) as vs:
-                            out_part, block_rnn_vars = self._block_rnn(in_part, batch_size, steps, sx, sy, in_part_channels, out_part_channels, initstates[name_crnn])
-                            variables.extend(block_rnn_vars)
-                            return out_part
+                    with tf.variable_scope('crnn-'+name_crnn, reuse = tf.AUTO_REUSE) as vs:
+                        initstate = initstates[name_crnn]
+                        # initstate.shape is [batch_size, sx, sy, state_channels]
+                        initstate_shape = initstate.get_shape().as_list()
+                        if LSTM is True:
+                            state_channels = out_part_channels * 2
+                        else:
+                            state_channels = out_part_channels
+                        assert len(initstate_shape) == 4 and state_channels == initstate_shape[3]
+                        out_part, block_rnn_vars = self._block_rnn(in_part, batch_size, steps, sx, sy, in_part_channels, out_part_channels, initstates[name_crnn], LSTM)
+                        variables.extend(block_rnn_vars)
+                        return out_part
             
             def block_rnn_part(name_crnn, in_part, in_part_channels):
                 return block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, in_part_channels)
@@ -275,15 +284,28 @@ class Conv_Net(BasicACNetwork):
             for layer in range(0, layers):
                 with tf.variable_scope('down_layer-'+str(layer), reuse = tf.AUTO_REUSE) as vs:
                     features = 2**layer*features_root
+                    if LSTM is True and INIT is True:
+                        features = features * 2
                     stddev = np.sqrt(2 / (filter_size**2 * features))
 
                     # block_rnn for input
                     if layer == 0:
-                        in_node_channels = self.channels + self.n_class
-                        in_node = block_rnn_part_different_out_channels('down'+str(layer)+'_in', in_node, self.channels, in_node_channels)
+                        # in_node.shape is [batch_size, steps, sx, sy, ?]
+                        with tf.variable_scope('input_layer'):
+                            in_node_ori_channels = (self.channels + self.n_class) if INIT is True else self.channels
+                            if LSTM is True:
+                                in_node_channels = 2 * (self.channels + self.n_class) if INIT is True else (self.channels + self.n_class)
+                            else:
+                                in_node_channels = self.channels + self.n_class
+                            w_lstminit = weight_variable('w_initfc', [in_node_ori_channels, in_node_channels], stddev)
+                            b_lstminit = bias_variable('b_initfc', [in_node_channels])
+                            variables.extend((w_lstminit, b_lstminit))
+                            in_node = tf.reshape(in_node, [-1, in_node_ori_channels])
+                            in_node = tf.nn.relu(tf.matmul(in_node, w_lstminit) + b_lstminit)
+                            in_node = tf.reshape(in_node, [batch_size, steps, sx, sy, in_node_channels])
                     else:
                         in_node_channels = features //2
-                        in_node = block_rnn_part('down'+str(layer)+'_in', in_node, in_node_channels)
+                    in_node = block_rnn_part('down'+str(layer)+'_in', in_node, in_node_channels)
             
                     # conv vars
                     w1 = weight_variable('w1', [filter_size, filter_size, in_node_channels, features], stddev)
