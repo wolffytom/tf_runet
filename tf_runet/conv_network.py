@@ -302,10 +302,11 @@ class Conv_Net(BasicACNetwork):
                             variables.extend((w_lstminit, b_lstminit))
                             in_node = tf.reshape(in_node, [-1, in_node_ori_channels])
                             in_node = tf.nn.relu(tf.matmul(in_node, w_lstminit) + b_lstminit)
-                            in_node = tf.reshape(in_node, [batch_size, steps, sx, sy, in_node_channels])
+                            in_node = tf.reshape(in_node, [batch_size*steps, sx, sy, in_node_channels])
                     else:
                         in_node_channels = features //2
                     in_node = block_rnn_part('down'+str(layer)+'_in', in_node, in_node_channels)
+                    #in_node = self._reshape_to_4dim(in_node)
             
                     # conv vars
                     w1 = weight_variable('w1', [filter_size, filter_size, in_node_channels, features], stddev)
@@ -345,6 +346,8 @@ class Conv_Net(BasicACNetwork):
             for layer in range(layers-2, -1, -1):
                 with tf.variable_scope('up-'+str(layer), reuse = tf.AUTO_REUSE) as vs:
                     features = 2**(layer+1)*features_root
+                    if LSTM is True and INIT is True:
+                        features = features * 2
                     stddev = np.sqrt(2 / (filter_size**2 * features))
 
                     # conv vars
