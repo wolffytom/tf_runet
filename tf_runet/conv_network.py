@@ -69,12 +69,12 @@ class Conv_Net(BasicACNetwork):
             return tf.reshape(_input, shape=[batch_size, steps, shape[1],shape[2],shape[3]])
 
     def _block_rnn(self, in_node, batch_size, steps, sx, sy, in_channels, out_channels, initstate, LSTM):
-        in_node = self._reshape_to_5dim(in_node, batch_size, steps)
+        in_node = tf.reshape(in_node, [batch_size, steps, sx, sy, in_channels])
         if LSTM is True:
             in_node, variables = block_c_lstmnn(sx, sy, in_node, in_channels, initstate, out_channels)
         else:
             in_node, variables = block_c_rnn_without_size(sx, sy, in_node, in_channels, initstate, out_channels)
-        in_node = self._reshape_to_4dim(in_node)
+        in_node = tf.reshape(in_node, [batch_size * steps, sx, sy, out_channels])
         return in_node, variables
 
     def _block_rnn_zero_init(self, in_node, batch_size, steps, sx, sy, channels):
@@ -140,8 +140,6 @@ class Conv_Net(BasicACNetwork):
             conv1 = conv2d(in_node, w1, self.keep_prob)
             tmp_h_conv = tf.nn.relu(conv1 + b1)
 
-            #print('layer:', layer)
-            #print(196 * (sx-2) * (sy-2) * features)
             #tmp_h_conv = self._block_rnn(tmp_h_conv, batch_size, steps, sx-2, sy-2, features)
 
             conv2 = conv2d(tmp_h_conv, w2, self.keep_prob)
@@ -189,8 +187,6 @@ class Conv_Net(BasicACNetwork):
             sx = sx*2-2
             sy = sy*2-2
 
-            #print('layer:', layer)
-            #print(196 * (sx) * (sy) * (features//2))
             #h_conv = self._block_rnn(h_conv, batch_size, steps, sx, sy, features//2)
 
             conv2 = conv2d(h_conv, w2, self.keep_prob)

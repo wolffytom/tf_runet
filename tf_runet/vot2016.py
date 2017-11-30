@@ -2,7 +2,7 @@ import os
 from PIL import Image
 import numpy as np
 import sys
-from tqdm import *
+from tqdm import * #pip3 install tqdm
 
 class VOT2016_Data_Provider():
     def __init__(self,pathofvot2016):

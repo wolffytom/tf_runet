@@ -228,5 +228,9 @@ def predict(model_path):
         img = np.append(img, nimg, axis=1)
     Image.fromarray(img).show(title='0,5')
     
+def newclass():
+    runet = RUnet_test('runet_test')
+
 if __name__ == '__main__':
-    train('/home/cjl/models/20171127/train200')
+    #train('/home/cjl/models/20171127/train200')
+    newclass()
