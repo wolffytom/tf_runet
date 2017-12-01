@@ -3,8 +3,8 @@ import numpy as np
 from collections import OrderedDict
 
 from basic_network import BasicACNetwork
-from block_crnn import block_c_rnn_zero_init_without_size
-from block_crnn import block_c_rnn_without_size
+from block_crnn import block_c_rnn_zero_init
+from block_crnn import block_c_rnn
 from block_crnn import block_c_lstmnn
 from layers import *
 from vot2016 import VOT2016_Data_Provider
@@ -43,7 +43,7 @@ class Conv_Net(BasicACNetwork):
         in_size = 1000
         size = in_size
         with tf.variable_scope('r_net_test', reuse = tf.AUTO_REUSE) as vs:
-            in_node = block_c_rnn_zero_init_without_size(self.nx, self.ny, in_node, self.channels, self.channels)
+            in_node = block_c_rnn_zero_init(self.nx, self.ny, in_node, self.channels, self.channels)
         
         with tf.variable_scope('conv1', reuse = tf.AUTO_REUSE) as vs:
             stddev = np.sqrt(2 / (self.filter_size**2 * self.channels))
@@ -73,13 +73,13 @@ class Conv_Net(BasicACNetwork):
         if LSTM is True:
             in_node, variables = block_c_lstmnn(sx, sy, in_node, in_channels, initstate, out_channels)
         else:
-            in_node, variables = block_c_rnn_without_size(sx, sy, in_node, in_channels, initstate, out_channels)
+            in_node, variables = block_c_rnn(sx, sy, in_node, in_channels, initstate, out_channels)
         in_node = tf.reshape(in_node, [batch_size * steps, sx, sy, out_channels])
         return in_node, variables
 
     def _block_rnn_zero_init(self, in_node, batch_size, steps, sx, sy, channels):
         in_node = self._reshape_to_5dim(in_node, batch_size, steps)
-        in_node = block_c_rnn_zero_init_without_size(sx, sy, in_node, channels, channels)
+        in_node = block_c_rnn_zero_init(sx, sy, in_node, channels, channels)
         in_node = self._reshape_to_4dim(in_node)
         return in_node
 

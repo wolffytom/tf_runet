@@ -7,6 +7,7 @@ import tensorflow as tf
 
 from tensorflow.contrib.rnn import ConvLSTMCell
 from tensorflow.contrib.rnn import LSTMStateTuple
+
 def block_c_lstmnn(nx, ny, x, x_channels, initstate, out_channels):
     """c-rnn
 
@@ -33,7 +34,7 @@ def block_c_lstmnn(nx, ny, x, x_channels, initstate, out_channels):
         )
     return out, rnnCell.variables
 
-def block_c_rnn_without_size(nx, ny, x, x_channels, initstate, out_state_channels):
+def block_c_rnn(nx, ny, x, x_channels, initstate, out_state_channels):
     """c-rnn
 
     Args:
@@ -43,13 +44,6 @@ def block_c_rnn_without_size(nx, ny, x, x_channels, initstate, out_state_channel
     return:
         output: size as [batch_size, steps, nx, ny, out_channels]
     """
-    #x_shapelist = x.get_shape().as_list()
-    #print(x_shapelist)
-    #assert x_shapelist[2] == nx and x_shapelist[3] == ny and x_shapelist[4] == x_channels and len(x_shapelist) == 5
-    #initstate_shapelist = initstate.get_shape().as_list()
-    #assert initstate_shapelist[1] == nx and initstate_shapelist[2] == ny and initstate_shapelist[3] == out_channels and len(initstate_shapelist) == 4
-    #batch_size = tf.shape(x)[0]
-    #steps = tf.shape(x)[1]
 
     variables = []
     with tf.variable_scope('block_c_rnn_without_size', reuse = tf.AUTO_REUSE):
@@ -67,7 +61,7 @@ def block_c_rnn_without_size(nx, ny, x, x_channels, initstate, out_state_channel
         out = tf.reshape(out, shape=[tf.shape(x)[0], tf.shape(x)[1], nx, ny, out_state_channels], name = 'out')
     return out, variables
 
-def block_c_rnn_zero_init_without_size(nx, ny, x, x_channels, out_channels):
+def block_c_rnn_zero_init(nx, ny, x, x_channels, out_channels):
     """c-rnn
 
     Args:
@@ -76,58 +70,17 @@ def block_c_rnn_zero_init_without_size(nx, ny, x, x_channels, out_channels):
     return:
         output: size as [batch_size, steps, nx, ny, out_channels]
     """
-    #x_shapelist = x.get_shape().as_list()
-    #print(x_shapelist)
-    #print(nx, ' ', ny, ' ', x_channels)
-    #assert x_shapelist[2] == nx and x_shapelist[3] == ny and x_shapelist[4] == x_channels and len(x_shapelist) == 5
-    #initstate_shapelist = initstate.get_shape().as_list()
-    #assert initstate_shapelist[1] == nx and initstate_shapelist[2] == ny and initstate_shapelist[3] == out_channels and len(initstate_shapelist) == 4
 
     x = tf.reshape(x, shape=[tf.shape(x)[0], tf.shape(x)[1], nx*ny*x_channels])
-    #initstate = tf.reshape(initstate, shape=[tf.shape(x)[0], nx*ny*out_channels])
     rnnCell = block_C_RNNCell(nx,ny,x_channels,out_channels)
     out, _statei = tf.nn.dynamic_rnn(
             rnnCell,
             inputs=x,
             dtype = tf.float32,
-            #initial_state=initstate,
             time_major=False
         )
     out = tf.reshape(out, shape=[tf.shape(x)[0], tf.shape(x)[1], nx, ny, out_channels])
     return out
-
-def block_c_rnn_zero_init_with_size(batch_size, steps, nx, ny, x, x_channels, out_channels):
-    initstate = tf.constant(0, dtype=tf.float32, shape=[batch_size, nx, ny, out_channels])
-    return block_c_rnn(batch_size, steps, nx, ny, x, x_channels, initstate, out_channels)
-
-def block_c_rnn_with_size(batch_size, steps, nx, ny, x, x_channels, initstate, out_channels):
-    """c-rnn
-
-    Args:
-        x: inputs, size as [batch_size, steps, nx, ny, channels]
-        initstate: size as [batch_size, nx, ny, out_channels]
-    
-    return:
-        output: size as [batch_size, steps, nx, ny, out_channels]
-    """
-    x_shapelist = x.get_shape().as_list()
-    assert x_shapelist == [batch_size, steps, nx, ny, x_channels]
-    initstate_shapelist = initstate.get_shape().as_list()
-    assert initstate_shapelist == [batch_size, nx, ny, out_channels]
-
-    x = tf.reshape(x, shape=[batch_size, steps, nx*ny*x_channels])
-    initstate = tf.reshape(initstate, shape=[batch_size, nx*ny*out_channels])
-    rnnCell = block_C_RNNCell(nx,ny,x_channels,out_channels)
-    out, _statei = tf.nn.dynamic_rnn(
-            rnnCell,
-            inputs=x,
-            #dtype = tf.float32,
-            initial_state=initstate,
-            time_major=False
-        )
-    out = tf.reshape(out, shape=[batch_size, steps, nx, ny, out_channels])
-    return out
-    
 
 class block_C_RNNCell(rnn.RNNCell):
     """The most basic RNN cell.
@@ -186,8 +139,6 @@ def test_with_size():
     n_class = 2
     x = tf.placeholder(tf.float32, shape=(batch_size, steps, nx, ny, channels))
     initstate = tf.placeholder(tf.float32, shape=(batch_size, nx, ny, n_class))
-    #create_r_conv_net_nobatch(x, gt1, True, channals, n_class)
-    #out = block_rnn_zeroinit(x,nx,ny,channals)
     out = block_c_rnn_zero_init(batch_size, steps, nx, ny, x, channels, n_class)
 
     print (out)
@@ -202,9 +153,7 @@ def test_without_size():
     n_class = 2
     x = tf.placeholder(tf.float32, shape=(None, None, nx, ny, channels))
     initstate = tf.placeholder(tf.float32, shape=(None, nx, ny, n_class))
-    #create_r_conv_net_nobatch(x, gt1, True, channals, n_class)
-    #out = block_rnn_zeroinit(x,nx,ny,channals)
-    out, variables = block_c_rnn_without_size(nx, ny, x, channels, initstate, n_class)
+    out, variables = block_c_rnn(nx, ny, x, channels, initstate, n_class)
 
     print ("out:",out)
     print ("vars:",variables)

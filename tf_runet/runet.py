@@ -38,7 +38,7 @@ from util import oneHot_to_gray255
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
-class RUnet_test(object):
+class RUNet(object):
     """
     A unet implementation
 
@@ -178,7 +178,7 @@ def train(model_path = None):
     iptdata = iptdata[:,0:10,:,:,:]
     gtdata = gtdata[:,0:10,:,:,:]
 
-    runet = RUnet_test('runet_test')
+    runet = RUNet('runet_test')
     if model_path is None:
         runet._init_vars_random()
     else:
@@ -214,7 +214,7 @@ def predict(model_path):
     iptdata = iptdata[:,0:10,:,:,:]
     gtdata = gtdata[:,0:10,:,:,:]
 
-    runet = RUnet_test('runet_test')
+    runet = RUNet('runet_test')
     runet.restore(model_path)
 
     cost, accuracy, otherlabels, predict = runet.predict(iptdata, gtdata)
@@ -229,9 +229,10 @@ def predict(model_path):
     Image.fromarray(img).show(title='0,5')
     
 def newclass():
-    runet = RUnet_test('runet_test')
+    runet = RUNet('runet_test')
 
 if __name__ == '__main__':
-    train()
+    #train()
     #train('/home/cjl/models/20171127/train200')
     #newclass()
+    predict('/home/cjl/models/20171201/train150')
