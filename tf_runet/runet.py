@@ -203,7 +203,7 @@ def train(model_path = None):
         Image.fromarray(img).show(title='0,5')
         print('--------------------------------------')
         if (i % 50 == 0):
-            filename = '/home/cjl/models/20171128/train' + str(i)
+            filename = '/home/cjl/models/20171201/train' + str(i)
             runet.save(filename)
     print('========================================')
 
@@ -232,5 +232,6 @@ def newclass():
     runet = RUnet_test('runet_test')
 
 if __name__ == '__main__':
+    train()
     #train('/home/cjl/models/20171127/train200')
-    newclass()
+    #newclass()
