@@ -46,7 +46,9 @@ class VOT2016_Data_Provider():
         print('DataOK, loaded %d groups data.' % (len(self.datalength)))
         print('Max steps:%d' % (self.maxsteps))
         print('Min steps:%d' % (self.minsteps))
-        self.pointer = 0
+        self.dataidx = 0
+        self.nowdata = None
+        self.batchidx = 0
         #self.bagdata, self.baglabel = self.get_data(8)
     
     def get_data(self, dataidx):
@@ -99,6 +101,24 @@ class VOT2016_Data_Provider():
             inputdata = (inputdata[:batch_size * max_step,:,:,:]).reshape([batch_size, max_step, iptshp[1], iptshp[2],iptshp[3]])
             gtdataonehot = (gtdataonehot[:batch_size * max_step,:,:,:]).reshape([batch_size, max_step, gtshp[1], gtshp[2], gtshp[3]])
             return (inputdata, gtdataonehot)
+    
+    def get_one_data_with_maxstep_next_batch(self, batch_size, max_step):
+        if self.nowdata is None:
+            self.nowdata = self.get_one_data_with_maxstep(self.dataidx, max_step)
+        inputdata, gtdataonehot = self.nowdata
+        batches = len(inputdata)
+        if self.batchidx + batch_size >= batches:
+            returndata = (inputdata[self.batchidx:batches], gtdataonehot[self.batchidx:batches])
+        else:
+            returndata = (inputdata[self.batchidx:self.batchidx + batch_size], gtdataonehot[self.batchidx:self.batchidx + batch_size])
+        
+        self.batchidx = self.batchidx + batch_size
+        if self.batchidx >= batches:
+            self.batchidx = 0
+            self.dataidx = (self.dataidx + 1) % self.datanamesize
+            self.nowdata = None
+        
+        return returndata
 
     def __call__(self, batch_size = 1):
         return self.bagdata, self.baglabel
@@ -113,7 +133,13 @@ def printlen():
 
 def test_maxstep():
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
-    iptdata, gtdataonehot = dptest.get_one_data_with_maxstep(0, 50)
+    iptdata, gtdataonehot = dptest.get_one_data_with_maxstep_next_batch(10, 8)
+    print(np.shape(iptdata))
+    print(np.shape(gtdataonehot))
+    #iptdata, gtdataonehot = dptest.get_one_data_with_maxstep_next_batch(10, 8)
+    print(np.shape(iptdata))
+    print(np.shape(gtdataonehot))
+    #iptdata, gtdataonehot = dptest.get_one_data_with_maxstep_next_batch(10, 8)
     print(np.shape(iptdata))
     print(np.shape(gtdataonehot))
 
