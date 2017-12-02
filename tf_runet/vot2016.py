@@ -85,6 +85,21 @@ class VOT2016_Data_Provider():
         # gtdata.dim:(batch_size = 1, steps, nx, ny, nclass)
         return (inputdata, gtdataonehot)
 
+    def get_one_data_with_maxstep(self, dataidx, max_step):
+        inputdata, gtdataonehot = self.get_data(dataidx)
+        iptshp = list(np.shape(inputdata)) # iptdata is in shape[sheps, nx, ny, channels]
+        gtshp = list(np.shape(gtdataonehot))
+        steps = iptshp[0]
+        if steps <= max_step:
+            inputdata = inputdata.reshape([1] + list(np.shape(inputdata)))
+            gtdataonehot = gtdataonehot.reshape([1] + list(np.shape(gtdataonehot)))
+            return (inputdata, gtdataonehot)
+        else:
+            batch_size = steps // max_step
+            inputdata = (inputdata[:batch_size * max_step,:,:,:]).reshape([batch_size, max_step, iptshp[1], iptshp[2],iptshp[3]])
+            gtdataonehot = (gtdataonehot[:batch_size * max_step,:,:,:]).reshape([batch_size, max_step, gtshp[1], gtshp[2], gtshp[3]])
+            return (inputdata, gtdataonehot)
+
     def __call__(self, batch_size = 1):
         return self.bagdata, self.baglabel
 
@@ -96,6 +111,14 @@ def printlen():
         ny = len(iptdata[0][0])
         print(nx, ' ',ny)
 
+def test_maxstep():
+    dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
+    iptdata, gtdataonehot = dptest.get_one_data_with_maxstep(0, 50)
+    print(np.shape(iptdata))
+    print(np.shape(gtdataonehot))
+
+
 if __name__ == '__main__':
-    printlen()
+    #printlen()
+    test_maxstep()
     
