@@ -102,6 +102,10 @@ class VOT2016_Data_Provider():
             gtdataonehot = (gtdataonehot[:batch_size * max_step,:,:,:]).reshape([batch_size, max_step, gtshp[1], gtshp[2], gtshp[3]])
             return (inputdata, gtdataonehot)
     
+    def subsampling(self, datatuple, max_nx, max_ny):
+        inputdata, gtdataonehot = datatuple
+        ##################
+    
     def get_one_data_with_maxstep_next_batch(self, batch_size, max_step):
         if self.nowdata is None:
             self.nowdata = self.get_one_data_with_maxstep(self.dataidx, max_step)
