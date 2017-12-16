@@ -102,15 +102,16 @@ class VOT2016_Data_Provider():
             gtdataonehot = (gtdataonehot[:batch_size * max_step,:,:,:]).reshape([batch_size, max_step, gtshp[1], gtshp[2], gtshp[3]])
             return (inputdata, gtdataonehot)
     
-    def subsampling(self, datatuple, max_nx, max_ny):
+    def subsampling(self, datatuple, max_size):
+        max_nx, max_ny = max_size
         inputdata, gtdataonehot = datatuple
         batch_size,steps,nx,ny,channels = inputdata.shape
         timex = (nx + max_nx - 1) // max_nx
         timey = (ny + max_ny - 1) // max_ny
         time = timex if timex > timey else timey
-        return (inputdata[,,::time,::time,], gtdataonehot[,,::time,::time,])
+        return (inputdata[:,:,::time,::time,:], gtdataonehot[:,:,::time,::time,:])
     
-    def get_one_data_with_maxstep_next_batch(self, batch_size, max_step):
+    def get_one_data_with_maxstep_next_batch(self, batch_size, max_step, max_size = None):
         if self.nowdata is None:
             self.nowdata = self.get_one_data_with_maxstep(self.dataidx, max_step)
         inputdata, gtdataonehot = self.nowdata
@@ -126,7 +127,10 @@ class VOT2016_Data_Provider():
             self.dataidx = (self.dataidx + 1) % self.datanamesize
             self.nowdata = None
         
-        return returndata
+        if max_size is not None:
+            return self.subsampling(returndata, max_size)
+        else:
+            return returndata
 
     def __call__(self, batch_size = 1):
         return self.bagdata, self.baglabel
@@ -141,7 +145,7 @@ def printlen():
 
 def test_maxstep():
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
-    iptdata, gtdataonehot = dptest.get_one_data_with_maxstep_next_batch(10, 8)
+    iptdata, gtdataonehot = dptest.get_one_data_with_maxstep_next_batch(10, 8, max_size = (30,30))
     print(np.shape(iptdata))
     print(np.shape(gtdataonehot))
     #iptdata, gtdataonehot = dptest.get_one_data_with_maxstep_next_batch(10, 8)
