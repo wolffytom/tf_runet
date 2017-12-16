@@ -104,7 +104,11 @@ class VOT2016_Data_Provider():
     
     def subsampling(self, datatuple, max_nx, max_ny):
         inputdata, gtdataonehot = datatuple
-        ##################
+        batch_size,steps,nx,ny,channels = inputdata.shape
+        timex = (nx + max_nx - 1) // max_nx
+        timey = (ny + max_ny - 1) // max_ny
+        time = timex if timex > timey else timey
+        return (inputdata[,,::time,::time,], gtdataonehot[,,::time,::time,])
     
     def get_one_data_with_maxstep_next_batch(self, batch_size, max_step):
         if self.nowdata is None:
