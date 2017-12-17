@@ -169,8 +169,11 @@ def oneHot_to_gray255(one_hot_img):
     for ix in range(nx):
         for iy in range(ny):
             b = one_hot_img[ix][iy]
-            assert b[0] >= 0 and b[0] <= 1
-            result[ix][iy] = int(255.0 * b[0])
+            #assert b[0] >= 0 and b[0] <= 1 , '(nx,ny)=('+str(nx)+','+str(ny)+'),with error value:'+str(b[0])
+            if b[0] >= 0 and b[0] <= 1:
+                result[ix][iy] = int(255.0 * b[0])
+            else:
+                result[ix][iy] = 0
     return result
 
 if __name__ == '__main__':

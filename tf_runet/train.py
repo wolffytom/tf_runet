@@ -5,10 +5,10 @@ from util import oneHot_to_gray255
 import numpy as np
 from PIL import Image
 
-def train(model_path = None, save_path = '/home/cjl/models/train/', max_step = 6, batch_size = 5):
+def train(model_path = None, save_path = '/home/cjl/models/train/', max_step = 6, batch_size = 5, max_size = None):
     print('begin_train')
     data_provider = VOT2016_Data_Provider('/home/cjl/data/vot2016')
-    data_provider.dataidx = 8
+    data_provider.dataidx = 10
 
     runet = RUNet('runet_train')
     if model_path is None:
@@ -20,13 +20,19 @@ def train(model_path = None, save_path = '/home/cjl/models/train/', max_step = 6
     for i in range(10000):
         print('--------------------------------------')
         print('ite', i)
-        iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(batch_size, max_step)
+        iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(batch_size, max_step, max_size)
+        #gtdataimg = oneHot_to_gray255(gtdata[0][0])
+        #Image.fromarray(gtdataimg).show(title='0,5')
+        #print('iptdata.shape:',iptdata.shape)
+        #print('gtdata.shape:',gtdata.shape)
         cost, accuracy, otherlabels, predict = runet.train(iptdata, gtdata)
         print("cost:", cost, " accuracy:" , accuracy)
         otherlabels = otherlabels[0]
         predict = predict[0]
         
-        img = np.append(oneHot_to_gray255(otherlabels[0]),oneHot_to_gray255(predict[0]), axis=0)
+        lbimg = oneHot_to_gray255(otherlabels[0])
+        gtimg = oneHot_to_gray255(predict[0])
+        img = np.append(lbimg,gtimg, axis=0)
         for step in range(1, 5 if 5 < max_step - 1 else max_step - 1):
             nimg = np.append(oneHot_to_gray255(otherlabels[step]),oneHot_to_gray255(predict[step]), axis=0)
             img = np.append(img, nimg, axis=1)
@@ -40,6 +46,7 @@ def train(model_path = None, save_path = '/home/cjl/models/train/', max_step = 6
             runet.save(filename)
     print('========================================')
 
+'''
 def train_old(model_path = None):
     print('begin')
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
@@ -75,7 +82,7 @@ def train_old(model_path = None):
             filename = '/home/cjl/models/20171201/train' + str(i)
             runet.save(filename)
     print('========================================')
-
+'''
 def predict(model_path):
     print('begin')
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
@@ -102,4 +109,4 @@ if __name__ == '__main__':
     #train('/home/cjl/models/20171127/train200')
     #newclass()
     #predict('/home/cjl/models/20171201/train150')
-    train(save_path = '/home/cjl/models/20171202/', max_step = 5, batch_size = 5)
+    train(save_path = '/home/cjl/models/20171202/', max_step = 10, batch_size = 10, max_size = (200,200))

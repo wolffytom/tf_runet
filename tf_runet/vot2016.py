@@ -145,6 +145,7 @@ def printlen():
 
 def test_maxstep():
     dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
+    dptest.dataidx = 9
     iptdata, gtdataonehot = dptest.get_one_data_with_maxstep_next_batch(10, 8, max_size = (30,30))
     print(np.shape(iptdata))
     print(np.shape(gtdataonehot))
