@@ -58,6 +58,7 @@ class RUNet(object):
 
         self.optimizer = self._create_optimizer()
         self._create_global_net(nx=global_nx, ny=global_ny)
+        self.global_offset = self.global_net.offsetx
         self.sess = tf.Session()
     
     def _init_vars_random(self):

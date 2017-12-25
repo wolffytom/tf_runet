@@ -12,6 +12,7 @@ class VOT2016_Data_Provider():
         self.datanamesize = len(self.datanamelist)
         assert(self.datanamesize > 0)
         self.datalength = []
+        self.gtedge = []
         self.inputdata = []
         self.gtdata = []
         self.maxsteps = -1
@@ -41,6 +42,7 @@ class VOT2016_Data_Provider():
                 gtlist[inamen] = input_gt_dir + '/' + gtlist[inamen]
             self.inputdata.append(piclist)
             self.gtdata.append(gtlist)
+            self.gtedge.append(None)
         print(self.datalength)
         print(self.datanamelist)
         print('DataOK, loaded %d groups data.' % (len(self.datalength)))
@@ -72,8 +74,8 @@ class VOT2016_Data_Provider():
             inputdata[istep] = np.array(im_ipt)
             im_gt = Image.open(gtnamelist[istep])
             gtdata[istep] = np.array(im_gt)
-        gtdata = gtdata.reshape((steps*nx*ny))
         gtdata = gtdata.astype(np.int32)
+        gtdata = gtdata.reshape((steps*nx*ny))
         gtdataonehot = np.zeros((steps*nx*ny, 2), dtype=np.float32)
         gtdataonehot[np.arange(steps*nx*ny), gtdata] = 1
         gtdataonehot = gtdataonehot.reshape((steps,nx,ny,2))
@@ -87,8 +89,8 @@ class VOT2016_Data_Provider():
         # gtdata.dim:(batch_size = 1, steps, nx, ny, nclass)
         return (inputdata, gtdataonehot)
 
-    def get_one_data_with_maxstep(self, dataidx, max_step):
-        inputdata, gtdataonehot = self.get_data(dataidx)
+    def get_one_data_with_maxstep(self, max_step):
+        inputdata, gtdataonehot = self.get_data(self.dataidx)
         iptshp = list(np.shape(inputdata)) # iptdata is in shape[sheps, nx, ny, channels]
         gtshp = list(np.shape(gtdataonehot))
         steps = iptshp[0]
@@ -111,9 +113,9 @@ class VOT2016_Data_Provider():
         time = timex if timex > timey else timey
         return (inputdata[:,:,::time,::time,:], gtdataonehot[:,:,::time,::time,:])
     
-    def get_one_data_with_maxstep_next_batch(self, batch_size, max_step, max_size = None):
+    def get_one_data_with_maxstep_next_batch_t(self, batch_size, max_step, max_size = None, edge = 0):
         if self.nowdata is None:
-            self.nowdata = self.get_one_data_with_maxstep(self.dataidx, max_step)
+            self.nowdata = self.get_one_data_with_maxstep(max_step)
         inputdata, gtdataonehot = self.nowdata
         batches = len(inputdata)
         if self.batchidx + batch_size >= batches:
@@ -128,9 +130,26 @@ class VOT2016_Data_Provider():
             self.nowdata = None
         
         if max_size is not None:
-            return self.subsampling(returndata, max_size)
-        else:
+            returndata = self.subsampling(returndata, max_size)
+        
+        gtdata = returndata[1]
+        _,__,nx,ny,___ = gtdata.shape
+        sumcenter = np.sum(gtdata[:,:,edge:nx-edge,edge:ny-edge,1:2])
+        sumedge = np.sum(gtdata[:,:,:,:,1:2]) - sumcenter
+        #print(gtdata)
+        if sumcenter > 0 and sumedge == 0:
             return returndata
+        else:
+            print('sumcenter:',sumcenter)
+            print('sumedge:',sumedge)
+            #return self.get_one_data_with_maxstep_next_batch(batch_size, max_step, max_size, edge)
+            return None
+
+    def get_one_data_with_maxstep_next_batch(self, batch_size, max_step, max_size = None, edge = 0):
+        rd = self.get_one_data_with_maxstep_next_batch_t(batch_size,max_step,max_size,edge)
+        while rd is None:
+            rd = self.get_one_data_with_maxstep_next_batch_t(batch_size,max_step,max_size,edge)
+        return rd
 
     def __call__(self, batch_size = 1):
         return self.bagdata, self.baglabel

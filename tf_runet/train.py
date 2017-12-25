@@ -5,10 +5,10 @@ from util import oneHot_to_gray255
 import numpy as np
 from PIL import Image
 
-def train(model_path = None, save_path = '/home/cjl/models/train/', max_step = 6, batch_size = 5, max_size = None):
+def train(model_path = None, save_path = '/home/cjl/models/train/', max_step = 6, batch_size = 5, max_size = None, dataidx = 10):
     print('begin_train')
     data_provider = VOT2016_Data_Provider('/home/cjl/data/vot2016')
-    data_provider.dataidx = 10
+    data_provider.dataidx = dataidx
 
     runet = RUNet('runet_train')
     if model_path is None:
@@ -20,7 +20,7 @@ def train(model_path = None, save_path = '/home/cjl/models/train/', max_step = 6
     for i in range(10000):
         print('--------------------------------------')
         print('ite', i)
-        iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(batch_size, max_step, max_size)
+        iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(batch_size, max_step, max_size,runet.global_offset)
         #gtdataimg = oneHot_to_gray255(gtdata[0][0])
         #Image.fromarray(gtdataimg).show(title='0,5')
         #print('iptdata.shape:',iptdata.shape)
@@ -29,9 +29,24 @@ def train(model_path = None, save_path = '/home/cjl/models/train/', max_step = 6
         print("cost:", cost, " accuracy:" , accuracy)
         otherlabels = otherlabels[0]
         predict = predict[0]
-        
+        '''
+        sistep,six,siy,sic = otherlabels.shape
+        slen = sistep * six * siy
+        olrs = np.reshape(otherlabels, [slen,sic])
+        zero = 0
+        one = 0
+        for il in range(slen):
+            if olrs[il][0] == 1:
+                zero = zero + 1
+            else:
+                one = one + 1
+        print('zero:',zero)
+        print('one',one)
+        '''
         lbimg = oneHot_to_gray255(otherlabels[0])
         gtimg = oneHot_to_gray255(predict[0])
+        #print('predict0:',predict[0])
+        #print('otherlabels[0]:',otherlabels[0])
         img = np.append(lbimg,gtimg, axis=0)
         for step in range(1, 5 if 5 < max_step - 1 else max_step - 1):
             nimg = np.append(oneHot_to_gray255(otherlabels[step]),oneHot_to_gray255(predict[step]), axis=0)
@@ -41,7 +56,7 @@ def train(model_path = None, save_path = '/home/cjl/models/train/', max_step = 6
                 proc.kill()
         Image.fromarray(img).show(title='0,5')
         print('--------------------------------------')
-        if (i % 50 == 0):
+        if (i % 10 == 0):
             filename = save_path + 'train' + str(i)
             runet.save(filename)
     print('========================================')
@@ -109,4 +124,10 @@ if __name__ == '__main__':
     #train('/home/cjl/models/20171127/train200')
     #newclass()
     #predict('/home/cjl/models/20171201/train150')
-    train(save_path = '/home/cjl/models/20171202/', max_step = 10, batch_size = 10, max_size = (200,200))
+    train(
+        #model_path = '/home/cjl/models/20171202/train50',
+        save_path = '/home/cjl/models/20171225/',
+        max_step = 5,
+        batch_size = 5,
+        max_size = (300,300),
+        dataidx = 9)

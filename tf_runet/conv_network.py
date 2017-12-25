@@ -611,6 +611,11 @@ def test_convnet():
         print(sess.run(net.predict, feed_dict=feed_dict))
 
     #net.predict
+def test_offset():
+    net = Conv_Net('testoffset1', 100, 100, 3, 2)
+    print(net.offsetx, ' ',net.offsety)
+    net2 = Conv_Net('testoffset1', 400, 200, 3, 2)
+    print(net2.offsetx, ' ',net2.offsety)
 
 if __name__ == '__main__':
-    test_convnet()
+    test_offset()
