@@ -30,7 +30,7 @@ class Conv_Net(BasicACNetwork):
             self.firstlabel = self.labels[:,:1,:,:,:]
             self.otherlabels = self.labels[:,1:,self.offsetx:self.offsetx + self.sx,self.offsety:self.offsety + self.sy,:]
             self.predict, self.variables = self._create_ru_net()
-            self.cost = self._get_cost(self.predict, self.otherlabels, "cross_entropy_with_class_ave_weights", cost_kwargs)
+            self.cost = self._get_cost(self.predict, self.otherlabels, "cross_entropy", cost_kwargs)
             self.accuracy = self._get_accuracy(self.predict, self.otherlabels)
 
     #@test
