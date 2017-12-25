@@ -60,6 +60,11 @@ class RUNet(object):
         self._create_global_net(nx=global_nx, ny=global_ny)
         self.global_offset = self.global_net.offsetx
         self.sess = tf.Session()
+
+        self.cost = tf.placeholder(dtype = tf.float32, shape=None)
+        tf.summary.scalar('cost', self.cost)
+        self.accuracy = tf.placeholder(dtype = tf.float32, shape=None)
+        tf.summary.scalar('accuracy', self.accuracy)
     
     def _init_vars_random(self):
         self.sess.run(tf.global_variables_initializer())
@@ -118,7 +123,9 @@ class RUNet(object):
             net.accuracy, 
             net.otherlabels,
             net.predict), feed_dict=feed_dict)
-        return cost, accuracy, otherlabels, predict
+        
+        summary = self.sess.run(tf.summary.merge_all(), feed_dict={self.cost:cost, self.accuracy:accuracy})
+        return summary, cost, accuracy, otherlabels, predict
 
     def save(self, model_path):
         """
