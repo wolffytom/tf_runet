@@ -31,7 +31,7 @@ class Conv_Net(BasicACNetwork):
             self.otherlabels = self.labels[:,1:,self.offsetx:self.offsetx + self.sx,self.offsety:self.offsety + self.sy,:]
             self.predict, self.variables = self._create_ru_net()
             self.cost = self._get_cost(self.predict, self.otherlabels, "cross_entropy", cost_kwargs)
-            self.accuracy = self._get_accuracy(self.predict, self.otherlabels)
+            self.total_accuracy, self.class_accuracy = self._get_accuracy(self.predict, self.otherlabels)
 
     #@test
     def _create_net_test(self):
@@ -521,9 +521,18 @@ class Conv_Net(BasicACNetwork):
     def _get_accuracy(self, logits, labels):
         flat_logits = tf.reshape(logits, [-1, self.n_class])
         flat_labels = tf.reshape(labels, [-1, self.n_class])
-        correct_prediction = tf.equal(tf.argmax(flat_logits, axis=1), tf.argmax(flat_labels, axis=1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        return accuracy
+        class_accuracy_list = []# = tf.zeros(shape=[self.n_class],dtype=dtypes.float32)
+        labels_split = tf.split(flat_labels,self.n_class,axis=1)
+        correct_prediction = tf.cast(tf.equal(tf.argmax(flat_logits, axis=1), tf.argmax(flat_labels, axis=1)), tf.float32)
+        for i_class in range(self.n_class):
+            labels_split[i_class] = tf.reshape(labels_split[i_class], [-1])
+            i_class_correct = tf.cast(tf.tensordot(labels_split[i_class], correct_prediction, axes=1), tf.float32)
+            i_class_times = tf.cast(tf.reduce_sum(labels_split[i_class]), tf.float32)
+            i_class_accuracy = i_class_correct / i_class_times
+            class_accuracy_list.append(tf.reshape(i_class_accuracy, [1]))
+        class_accuracy = tf.concat(class_accuracy_list,axis = 0)
+        total_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        return total_accuracy, class_accuracy
 
     def _get_cross_entropy_cost(self, logits, labels):
         flat_logits = tf.reshape(logits, [-1, self.n_class])

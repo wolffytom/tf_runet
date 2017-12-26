@@ -63,8 +63,12 @@ class RUNet(object):
 
         self.cost = tf.placeholder(dtype = tf.float32, shape=None)
         tf.summary.scalar('cost', self.cost)
-        self.accuracy = tf.placeholder(dtype = tf.float32, shape=None)
-        tf.summary.scalar('accuracy', self.accuracy)
+        self.total_accuracy = tf.placeholder(dtype = tf.float32, shape=None)
+        tf.summary.scalar('total_accuracy', self.total_accuracy)
+        self.class_accuracy = tf.placeholder(dtype = tf.float32, shape=[self.n_class])
+        class_accuracy_list = tf.split(self.class_accuracy, self.n_class,axis=0)
+        for i in range(self.n_class):
+            tf.summary.scalar('class_' + str(i) + '_accuracy', tf.reshape(class_accuracy_list[i], shape = []))
     
     def _init_vars_random(self):
         self.sess.run(tf.global_variables_initializer())
@@ -117,15 +121,19 @@ class RUNet(object):
             net.labels: gtdata,
             net.keep_prob: 1.0
         }
-        _opt, cost, accuracy, otherlabels, predict = self.sess.run((
+        _opt, cost, total_accuracy, class_accuracy, otherlabels, predict = self.sess.run((
             self.optimizer.minimize(net.cost),
             net.cost,
-            net.accuracy, 
+            net.total_accuracy,
+            net.class_accuracy,
             net.otherlabels,
             net.predict), feed_dict=feed_dict)
         
-        summary = self.sess.run(tf.summary.merge_all(), feed_dict={self.cost:cost, self.accuracy:accuracy})
-        return summary, cost, accuracy, otherlabels, predict
+        summary = self.sess.run(tf.summary.merge_all(), feed_dict={
+            self.cost:cost, 
+            self.total_accuracy:total_accuracy,
+            self.class_accuracy:class_accuracy})
+        return summary, cost, total_accuracy, class_accuracy, otherlabels, predict
 
     def save(self, model_path):
         """

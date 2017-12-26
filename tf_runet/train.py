@@ -32,8 +32,8 @@ def train(model_path = None,
         print('--------------------------------------')
         print('total_step:', total_step)
         iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(batch_size, max_step, max_size,runet.global_offset)
-        summary, cost, accuracy, otherlabels, predict = runet.train(iptdata, gtdata)
-        print("cost:", cost, " accuracy:" , accuracy)
+        summary, cost, total_accuracy, class_accuracy, otherlabels, predict = runet.train(iptdata, gtdata)
+        print("cost:", cost, " total_accuracy:" , total_accuracy, " class_accuracy:" , class_accuracy)
         train_writer.add_summary(summary, total_step)
         if display:
             otherlabels = otherlabels[0]
