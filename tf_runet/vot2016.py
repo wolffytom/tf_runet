@@ -1,6 +1,7 @@
 import os
 from PIL import Image
 import numpy as np
+import random
 import sys
 from tqdm import * #pip3 install tqdm
 
@@ -145,11 +146,37 @@ class VOT2016_Data_Provider():
             #return self.get_one_data_with_maxstep_next_batch(batch_size, max_step, max_size, edge)
             return None
 
-    def get_one_data_with_maxstep_next_batch(self, batch_size, max_step, max_size = None, edge = 0):
+    def get_one_data_with_maxstep_next_batch(self, batch_size, max_step, max_size = None, edge = 0, centershape = None):
         rd = self.get_one_data_with_maxstep_next_batch_t(batch_size,max_step,max_size,edge)
         while rd is None:
             rd = self.get_one_data_with_maxstep_next_batch_t(batch_size,max_step,max_size,edge)
-        return rd
+        return rd[0], rd[1]#, self.get_mark(rd, edge, centershape)
+
+    def get_mark(self, datatuple, edge, centershape):
+        inputdata, gtdataonehot = datatuple
+        batch_size,steps,nx,ny,n_class = gtdataonehot.shape
+        otherlabels = gtdataonehot[: , 1: ,   edge:edge+centershape[0]  ,  edge:edge+centershape[1], :]
+        batch_size,steps,nx,ny,n_class = otherlabels.shape
+        othermark = np.zeros([batch_size,steps,nx,ny], dtype=np.float32)
+        nl = nx * ny
+        ox = 0
+        for i_b in range(batch_size):
+            for i_s in range(steps):
+                othermark[i_b][i_s] = otherlabels[i_b][i_s][:,:,1]
+                classonesum = np.sum(othermark[i_b][i_s])
+                classzerosum = np.sum(otherlabels[i_b][i_s][:,:,0])
+                if (classzerosum <= classonesum):
+                    othermark[i_b][i_s] = np.ones([nx,ny], dtype=np.float32)
+                    break
+                om_flat = othermark[i_b][i_s].reshape(nl)
+                for i in range(np.int(classonesum)):
+                    a = random.randint(0,nl-1)
+                    while om_flat[a] == 1:
+                        ox += 1
+                        a = random.randint(0,nl-1)
+                    om_flat[a] = 1
+        print(ox)
+        return othermark
 
     def __call__(self, batch_size = 1):
         return self.bagdata, self.baglabel

@@ -10,7 +10,7 @@ from layers import *
 from vot2016 import VOT2016_Data_Provider
 
 class Conv_Net(BasicACNetwork):
-    def __init__(self, name, nx, ny, channels, n_class, filter_size=3, cost="cross_entropy", cost_kwargs={}):
+    def __init__(self, name, nx, ny, channels, n_class, filter_size=3, cost="cross_entropy", cost_kwargs={}, use_mark = False):
         cost_kwargs["regularizer"] = 0.003
         self.name = name
         #BasicACNetwork.__init__(self, self.name)
@@ -21,16 +21,18 @@ class Conv_Net(BasicACNetwork):
         self.n_class = n_class
         self.filter_size = filter_size
         self.variables = [] # for regularizer
+        self.use_mark = use_mark
         with tf.variable_scope('RU_Net', reuse = tf.AUTO_REUSE):
             self.inputs = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, channels])
             self.labels = tf.placeholder(dtype = tf.float32, shape=[None, None, nx, ny, n_class])
+            self.othermarks = tf.placeholder(dtype = tf.float32, shape=[None, None, self.sx, self.sy])
             self.keep_prob = tf.placeholder(dtype = tf.float32)
             self.firstframe = self.inputs[:,:1,:,:,:]
             self.otherframes = self.inputs[:,1:,:,:,:]
             self.firstlabel = self.labels[:,:1,:,:,:]
             self.otherlabels = self.labels[:,1:,self.offsetx:self.offsetx + self.sx,self.offsety:self.offsety + self.sy,:]
             self.predict, self.variables = self._create_ru_net()
-            self.cost = self._get_cost(self.predict, self.otherlabels, "cross_entropy", cost_kwargs)
+            self.cost = self._get_cost(self.predict, self.otherlabels, self.othermarks, "cross_entropy", cost_kwargs)
             self.total_accuracy, self.class_accuracy = self._get_accuracy(self.predict, self.otherlabels)
 
     #@test
@@ -540,7 +542,7 @@ class Conv_Net(BasicACNetwork):
         loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=flat_logits,labels=flat_labels))
         return loss
 
-    def _get_cost(self, logits, labels, cost_name, cost_kwargs = {}):
+    def _get_cost(self, logits, labels, marks, cost_name, cost_kwargs = {}):
         """
         Constructs the cost function, either cross_entropy, weighted cross_entropy or dice_coefficient.
         Optional arguments are: 
@@ -567,8 +569,11 @@ class Conv_Net(BasicACNetwork):
                 loss = tf.reduce_mean(weighted_loss)
 
             else:
-                loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=flat_logits,
-                                                                              labels=flat_labels))
+                lossmap = tf.nn.softmax_cross_entropy_with_logits(logits=flat_logits,labels=flat_labels)
+                if self.use_mark:
+                    flat_marks = tf.reshape(marks, [-1])
+                    lossmap = tf.tensordot(lossmap, flat_marks, axes=1)
+                loss = tf.reduce_mean(lossmap)
         elif cost_name == "cross_entropy_with_class_ave_weights":
             classes_distrib_inv = 1 / tf.reduce_sum(flat_labels, axis=0)
             classes_weights = classes_distrib_inv / tf.reduce_sum(classes_distrib_inv)

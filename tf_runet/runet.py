@@ -109,7 +109,7 @@ class RUNet(object):
         print ('cost as:' , cost)
         return cost, accuracy, otherlabels, predict
 
-    def train(self, iptdata, gtdata, optimizer="momentum", opt_kwargs={}):
+    def train(self, iptdata, gtdata, get_mark_func, optimizer="momentum", opt_kwargs={}):
         iptdata_shape = np.shape(iptdata)
         batch_size, steps, nx, ny, channels = iptdata_shape
         assert self.channels == channels
@@ -119,6 +119,7 @@ class RUNet(object):
         feed_dict = {
             net.inputs: iptdata,
             net.labels: gtdata,
+            net.othermarks: get_mark_func((iptdata, gtdata),net.offsetx,(net.sx,net.sy)),
             net.keep_prob: 1.0
         }
         _opt, cost, total_accuracy, class_accuracy, otherlabels, predict = self.sess.run((
