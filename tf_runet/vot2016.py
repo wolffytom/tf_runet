@@ -3,7 +3,7 @@ from PIL import Image
 import numpy as np
 import random
 import sys
-from tqdm import * #pip3 install tqdm
+#from tqdm import * #pip3 install tqdm
 
 class VOT2016_Data_Provider():
     def __init__(self,pathofvot2016):
@@ -70,7 +70,7 @@ class VOT2016_Data_Provider():
         inputdata = np.zeros((steps, nx, ny, channals), dtype=np.float32)
         gtdata = np.zeros((steps, nx, ny), dtype = np.bool)
         print('loading data ' ,datname, '...')
-        for istep in tqdm(range(steps)):
+        for istep in range(steps):#tqdm(range(steps)):
             im_ipt = Image.open(inputnamelist[istep])
             inputdata[istep] = np.array(im_ipt)
             im_gt = Image.open(gtnamelist[istep])
