@@ -120,7 +120,7 @@ class RUNet(object):
             net.inputs: iptdata,
             net.labels: gtdata,
             net.othermarks: get_mark_func((iptdata, gtdata),net.offsetx,(net.sx,net.sy)),
-            net.keep_prob: 1.0
+            net.keep_prob: 0.5
         }
         _opt, cost, total_accuracy, class_accuracy, otherlabels, predict = self.sess.run((
             self.optimizer.minimize(net.cost),

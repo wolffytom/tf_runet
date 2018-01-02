@@ -10,7 +10,7 @@ from layers import *
 from vot2016 import VOT2016_Data_Provider
 
 class Conv_Net(BasicACNetwork):
-    def __init__(self, name, nx, ny, channels, n_class, filter_size=3, cost="cross_entropy", cost_kwargs={}, use_mark = False):
+    def __init__(self, name, nx, ny, channels, n_class, filter_size=3, cost="cross_entropy", cost_kwargs={}, use_mark = True):
         cost_kwargs["regularizer"] = 0.003
         self.name = name
         #BasicACNetwork.__init__(self, self.name)
@@ -573,7 +573,9 @@ class Conv_Net(BasicACNetwork):
                 if self.use_mark:
                     flat_marks = tf.reshape(marks, [-1])
                     lossmap = tf.tensordot(lossmap, flat_marks, axes=1)
-                loss = tf.reduce_mean(lossmap)
+                    loss = tf.reduce_sum(lossmap) / tf.reduce_sum(flat_marks)
+                else:
+                    loss = tf.reduce_mean(lossmap)
         elif cost_name == "cross_entropy_with_class_ave_weights":
             classes_distrib_inv = 1 / tf.reduce_sum(flat_labels, axis=0)
             classes_weights = classes_distrib_inv / tf.reduce_sum(classes_distrib_inv)

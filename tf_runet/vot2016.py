@@ -167,14 +167,18 @@ class VOT2016_Data_Provider():
                 classzerosum = np.sum(otherlabels[i_b][i_s][:,:,0])
                 if (classzerosum <= classonesum):
                     othermark[i_b][i_s] = np.ones([nx,ny], dtype=np.float32)
-                    break
+                    continue
                 om_flat = othermark[i_b][i_s].reshape(nl)
-                for i in range(np.int(classonesum)):
+                classzerotime = int(classonesum * 0.9)
+                for i in range(classzerotime):
                     a = random.randint(0,nl-1)
                     while om_flat[a] == 1:
                         ox += 1
                         a = random.randint(0,nl-1)
                     om_flat[a] = 1
+                zerors = np.dot(otherlabels[i_b][i_s][:,:,0].reshape(nl), othermark[i_b][i_s].reshape(nl))
+                oners = np.dot(otherlabels[i_b][i_s][:,:,1].reshape(nl), othermark[i_b][i_s].reshape(nl))
+                #print('zero:',zerors,'---one:',oners)
         print(ox)
         return othermark
 
