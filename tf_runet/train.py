@@ -8,15 +8,16 @@ from PIL import Image
 
 def train(model_path = None,
           save_path = '/home/cjl/models/train',
+          data_path = '/home/cjl/data/vot2016',
           max_step = 6,
           batch_size = 5,
           max_size = None,
           total_step = 0,
-          display = True,
+          display = False,
           displaystep = 30,
           dataidx = 10):
     print('begin_train')
-    data_provider = VOT2016_Data_Provider('/home/cjl/data/vot2016')
+    data_provider = VOT2016_Data_Provider(data_path)
     data_provider.dataidx = dataidx
 
     runet = RUNet('runet_train')
@@ -82,8 +83,8 @@ if __name__ == '__main__':
     #newclass()
     #predict('/home/cjl/models/20171201/train150')
     train(
-        #model_path = '/home/cjl/models/20171202/train50',
-        save_path = '/home/cjl/models/20180102',
+        #model_path = '/home/cjl/models/20180102/train100',
+        save_path = '/home/cjl/models/20180104',
         max_step = 10,
         batch_size = 8,
         max_size = (300,300),

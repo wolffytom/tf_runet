@@ -67,8 +67,12 @@ class RUNet(object):
         tf.summary.scalar('total_accuracy', self.total_accuracy)
         self.class_accuracy = tf.placeholder(dtype = tf.float32, shape=[self.n_class])
         class_accuracy_list = tf.split(self.class_accuracy, self.n_class,axis=0)
+        self.predict = tf.placeholder(dtype = tf.float32, shape=[None, None, None, None, self.n_class])
+        predict_flat = tf.reshape(self.predict, [-1, self.n_class])
+        predict_flat_split = tf.split(predict_flat, self.n_class,axis=1)
         for i in range(self.n_class):
             tf.summary.scalar('class_' + str(i) + '_accuracy', tf.reshape(class_accuracy_list[i], shape = []))
+            tf.summary.histogram('class_'+ str(i) + '_predict', tf.reshape(predict_flat_split[i], [-1]))
     
     def _init_vars_random(self):
         self.sess.run(tf.global_variables_initializer())
@@ -133,7 +137,8 @@ class RUNet(object):
         summary = self.sess.run(tf.summary.merge_all(), feed_dict={
             self.cost:cost, 
             self.total_accuracy:total_accuracy,
-            self.class_accuracy:class_accuracy})
+            self.class_accuracy:class_accuracy,
+            self.predict:predict})
         return summary, cost, total_accuracy, class_accuracy, otherlabels, predict
 
     def save(self, model_path):
@@ -187,69 +192,3 @@ def get_image_summary(img, idx=0):
     V = tf.transpose(V, (2, 0, 1))
     V = tf.reshape(V, tf.stack((-1, img_w, img_h, 1)))
     return V
-
-def train(model_path = None):
-    print('begin')
-    dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
-    iptdata, gtdata = dptest.get_data_one_batch(8)
-    iptdata = iptdata[:,0:10,:,:,:]
-    gtdata = gtdata[:,0:10,:,:,:]
-
-    runet = RUNet('runet_test')
-    if model_path is None:
-        runet._init_vars_random()
-    else:
-        runet.restore(model_path)
-
-    import psutil
-    for i in range(10000):
-        print('--------------------------------------')
-        print('ite', i)
-        cost, accuracy, otherlabels, predict = runet.train(iptdata, gtdata)
-        print("cost:", cost, " accuracy:" , accuracy)
-        otherlabels = otherlabels[0]
-        predict = predict[0]
-        
-        img = np.append(util.oneHot_to_gray255(otherlabels[0]),util.oneHot_to_gray255(predict[0]), axis=0)
-        for step in range(1, 5):
-            nimg = np.append(util.oneHot_to_gray255(otherlabels[step]),util.oneHot_to_gray255(predict[step]), axis=0)
-            img = np.append(img, nimg, axis=1)
-        for proc in psutil.process_iter():
-            if proc.name() == "display":
-                proc.kill()
-        Image.fromarray(img).show(title='0,5')
-        print('--------------------------------------')
-        if (i % 50 == 0):
-            filename = '/home/cjl/models/20171201/train' + str(i)
-            runet.save(filename)
-    print('========================================')
-
-def predict(model_path):
-    print('begin')
-    dptest = VOT2016_Data_Provider('/home/cjl/data/vot2016')
-    iptdata, gtdata = dptest.get_data_one_batch(8)
-    iptdata = iptdata[:,0:10,:,:,:]
-    gtdata = gtdata[:,0:10,:,:,:]
-
-    runet = RUNet('runet_test')
-    runet.restore(model_path)
-
-    cost, accuracy, otherlabels, predict = runet.predict(iptdata, gtdata)
-    print("cost:", cost, " accuracy:" , accuracy)
-    otherlabels = otherlabels[0]
-    predict = predict[0]
-        
-    img = np.append(util.oneHot_to_gray255(otherlabels[0]),util.oneHot_to_gray255(predict[0]), axis=0)
-    for step in range(1, 5):
-        nimg = np.append(util.oneHot_to_gray255(otherlabels[step]),util.oneHot_to_gray255(predict[step]), axis=0)
-        img = np.append(img, nimg, axis=1)
-    Image.fromarray(img).show(title='0,5')
-    
-def newclass():
-    runet = RUNet('runet_test')
-
-if __name__ == '__main__':
-    #train()
-    #train('/home/cjl/models/20171127/train200')
-    #newclass()
-    predict('/home/cjl/models/20171201/train150')
