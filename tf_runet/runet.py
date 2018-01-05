@@ -56,12 +56,12 @@ class RUNet(object):
         self.n_class = n_class
         self.summaries = kwargs.get("summaries", True)
 
+        self.sess = tf.Session()
         self.optimizer = self._create_optimizer()
         self._create_global_net(nx=global_nx, ny=global_ny)
         self.global_offset = self.global_net.offsetx
-        self.sess = tf.Session()
-
-        self.cost = tf.placeholder(dtype = tf.float32, shape=None)
+        
+        self.cost = tf.placeholder(name = 'runet.cost', dtype = tf.float32, shape=None)
         tf.summary.scalar('cost', self.cost)
         self.total_accuracy = tf.placeholder(dtype = tf.float32, shape=None)
         tf.summary.scalar('total_accuracy', self.total_accuracy)
@@ -86,12 +86,13 @@ class RUNet(object):
         return net
 
     def _create_optimizer(self, optimizer = "Adam"):
-        if optimizer == "RMSProp":
-            return tf.train.RMSPropOptimizer(learning_rate = args.learning_rate)
-        elif optimizer == "Adam":
-            return tf.train.AdamOptimizer(learning_rate=args.learning_rate)
-        else:
-            return None
+        with tf.variable_scope('runet.optimizer'):
+            if optimizer == "RMSProp":
+                return tf.train.RMSPropOptimizer(learning_rate = args.learning_rate)
+            elif optimizer == "Adam":
+                return tf.train.AdamOptimizer(learning_rate=args.learning_rate)
+            else:
+                return None
     
     def predict(self, iptdata, gtdata):
         iptdata_shape = np.shape(iptdata)

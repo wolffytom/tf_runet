@@ -34,17 +34,26 @@ def bias_variable(name, shape):
     #initial = tf.constant(0.1, shape=shape)
     return tf.get_variable(name, shape=shape, initializer=tf.initializers.constant(0.1))
 
-def conv2d(x, W,keep_prob_):
-    conv_2d = tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='VALID')
-    return tf.nn.dropout(conv_2d, keep_prob_)
+def conv2d(x, W,keep_prob_, name=None):
+    if name is None:
+        name = 'conv2d'
+    with tf.variable_scope(name, reuse = tf.AUTO_REUSE):
+        conv_2d = tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='VALID')
+        return tf.nn.dropout(conv_2d, keep_prob_, name=name)
 
-def deconv2d(x, W,stride):
-    x_shape = tf.shape(x)
-    output_shape = tf.stack([x_shape[0], x_shape[1]*2, x_shape[2]*2, x_shape[3]//2])
-    return tf.nn.conv2d_transpose(x, W, output_shape, strides=[1, stride, stride, 1], padding='VALID')
+def deconv2d(x, W,stride, name=None):
+    if name is None:
+        name = 'deconv2d'
+    with tf.variable_scope(name, reuse = tf.AUTO_REUSE):
+        x_shape = tf.shape(x)
+        output_shape = tf.stack([x_shape[0], x_shape[1]*2, x_shape[2]*2, x_shape[3]//2])
+        return tf.nn.conv2d_transpose(x, W, output_shape, strides=[1, stride, stride, 1], padding='VALID', name=name)
 
-def max_pool(x,n):
-    return tf.nn.max_pool(x, ksize=[1, n, n, 1], strides=[1, n, n, 1], padding='VALID')
+def max_pool(x,n, name=None):
+    if name is None:
+        name = 'max_pool'
+    with tf.variable_scope(name, reuse = tf.AUTO_REUSE):
+        return tf.nn.max_pool(x, ksize=[1, n, n, 1], strides=[1, n, n, 1], padding='VALID', name=name)
 
 def crop_and_concat(x1,x2):
     x1_shape = tf.shape(x1)

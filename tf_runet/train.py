@@ -21,7 +21,7 @@ def train(model_path = None,
     data_provider.dataidx = dataidx
 
     runet = RUNet('runet_train')
-    train_writer = tf.summary.FileWriter(save_path)
+    train_writer = tf.summary.FileWriter(save_path, runet.sess.graph)
     if model_path is None:
         runet._init_vars_random()
     else:
