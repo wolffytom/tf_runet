@@ -141,8 +141,8 @@ class VOT2016_Data_Provider():
         if sumcenter > 0 and sumedge == 0:
             return returndata
         else:
-            print('sumcenter:',sumcenter)
-            print('sumedge:',sumedge)
+            #print('sumcenter:',sumcenter)
+            #print('sumedge:',sumedge)
             #return self.get_one_data_with_maxstep_next_batch(batch_size, max_step, max_size, edge)
             return None
 

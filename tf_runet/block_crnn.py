@@ -8,7 +8,7 @@ import tensorflow as tf
 from tensorflow.contrib.rnn import ConvLSTMCell
 from tensorflow.contrib.rnn import LSTMStateTuple
 
-def block_c_lstmnn(nx, ny, x, x_channels, initstate, out_channels):
+def block_c_lstmnn(nx, ny, x, x_channels, out_channels, initstate = None):
     """c-rnn
 
     Args:
@@ -19,19 +19,27 @@ def block_c_lstmnn(nx, ny, x, x_channels, initstate, out_channels):
         output: size as [batch_size, steps, nx, ny, out_channels]
     """
     with tf.variable_scope('block_c_rnn_without_size', reuse = tf.AUTO_REUSE):
-        initstate_split = tf.split(initstate, 2, axis = 3)
         rnnCell = ConvLSTMCell(
             conv_ndims=2, 
             input_shape=[nx, ny, x_channels], 
             output_channels=out_channels,
             kernel_shape=[1,1]
             )
-        out, _statei = tf.nn.dynamic_rnn(
-            rnnCell,
-            inputs=x,
-            initial_state=LSTMStateTuple(initstate_split[0], initstate_split[1]),
-            time_major=False
-        )
+        if initstate is not None:
+            initstate_split = tf.split(initstate, 2, axis = 3)
+            out, _statei = tf.nn.dynamic_rnn(
+                rnnCell,
+                inputs=x,
+                initial_state=LSTMStateTuple(initstate_split[0], initstate_split[1]),
+                time_major=False
+            )
+        else:
+            out, _statei = tf.nn.dynamic_rnn(
+                rnnCell,
+                inputs=x,
+                dtype=tf.float32,
+                time_major=False
+            )
     return out, rnnCell.variables
 
 def block_c_rnn(nx, ny, x, x_channels, initstate, out_state_channels):
