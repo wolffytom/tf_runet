@@ -76,6 +76,9 @@ class RUNet(object):
     
     def _init_vars_random(self):
         self.sess.run(tf.global_variables_initializer())
+
+    def _init_vars_orthogonal(self):
+        self.sess.run(tf.orthogonal_initializer())
     
     def _create_global_net(self, opt_kwargs={}, nx=100, ny=100):
         self.global_net = Conv_Net('global_net', nx, ny, self.channels, self.n_class)

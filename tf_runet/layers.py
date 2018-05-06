@@ -28,11 +28,11 @@ def weight_variable_old(shape, stddev=0.1):
 def weight_variable(name, shape, stddev=0.1):
     #initial = tf.truncated_normal(shape, stddev=stddev)
     #return tf.Variable(initial)
-    return tf.get_variable(name, shape=shape, initializer=tf.initializers.truncated_normal(stddev=stddev))
+    return tf.get_variable(name, shape=shape)#, initializer=tf.initializers.truncated_normal(stddev=stddev))
 
 def bias_variable(name, shape):
     #initial = tf.constant(0.1, shape=shape)
-    return tf.get_variable(name, shape=shape, initializer=tf.initializers.constant(0.1))
+    return tf.get_variable(name, shape=shape)#, initializer=tf.initializers.constant(0.1))
 
 def conv2d(x, W,keep_prob_, name=None):
     if name is None:

@@ -32,7 +32,7 @@ class Conv_Net(BasicACNetwork):
             self.firstlabel = self.labels[:,:1,:,:,:]
             self.cutlabels = self.labels[:,:,self.offsetx:self.offsetx + self.sx,self.offsety:self.offsety + self.sy,:]
             self.otherlabels = self.cutlabels[:,1:,:,:,:]
-            self.predict, self.variables = self._create_ru_net_zero_init()
+            self.predict, self.variables = self._create_ru_net_sp_init()
             #self.cost = self._get_cost(self.predict, self.otherlabels, self.othermarks, "cross_entropy", cost_kwargs)
             self.cost = self._get_cost(self.predict, self.cutlabels, self.othermarks, "cross_entropy", cost_kwargs)
             #self.total_accuracy, self.class_accuracy = self._get_accuracy(self.predict, self.otherlabels)
@@ -267,7 +267,7 @@ class Conv_Net(BasicACNetwork):
                     initstates[name_crnn] = tf.reshape(in_part, [batch_size, sx, sy, in_part_channels])
                     return in_part
                 else:
-                    with tf.variable_scope('crnn-'+name_crnn, reuse = tf.AUTO_REUSE) as vs:
+                    with tf.variable_scope('crnn-'+name_crnn, reuse = tf.AUTO_REUSE, initializer = orthogonal_initializer()):
                         initstate = initstates[name_crnn]
                         # initstate.shape is [batch_size, sx, sy, state_channels]
                         initstate_shape = initstate.get_shape().as_list()
@@ -726,5 +726,10 @@ def test_offset():
     net2 = Conv_Net('testoffset1', 400, 200, 3, 2)
     print(net2.offsetx, ' ',net2.offsety)
 
+def test_new():
+    net = Conv_Net('test_new_net', 100, 100, 3, 2)
+    print(net)
+
 if __name__ == '__main__':
-    test_offset()
+    #test_offset()
+    test_new()
