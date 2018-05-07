@@ -4,8 +4,12 @@ from collections import OrderedDict
 
 from layer_ops import conv_relu
 from layer_ops import dconv_relu
+from layer_ops import fc_relu
+from layer_ops import max_pool
+from layer_ops import crop_and_concat
+from block_crnn import block_rnn
 
-def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels, n_class,
+def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels, n_class, keep_prob,
         layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True, LSTM = True):
     first_frameandlabel = tf.concat([firstframe,firstlabel], axis = 4)
     # first.shape is [batch_size, 1, nx, ny, self.channels + self.n_class]
@@ -25,7 +29,6 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
         sx = nx
         sy = ny
         in_node_channels = -1
-        in_node = tf.reshape(in_node, [tf.to_int32(batch_size * steps), sx, sy, channels + n_class])
 
         def block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, out_part_channels):
             if LSTM is True:
@@ -37,12 +40,12 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
                 initstates[name_crnn] = tf.reshape(in_part, [batch_size, sx, sy, in_part_channels])
                 return in_part
             else:
-                with tf.variable_scope('crnn-'+name_crnn, reuse = tf.AUTO_REUSE, initializer = orthogonal_initializer()):
+                with tf.variable_scope('crnn-'+name_crnn, reuse = tf.AUTO_REUSE, initializer = tf.orthogonal_initializer()):
                     initstate = initstates[name_crnn]
                     # initstate.shape is [batch_size, sx, sy, state_channels]
                     initstate_shape = initstate.get_shape().as_list()
                     assert len(initstate_shape) == 4 and state_channels == initstate_shape[3]
-                    out_part, block_rnn_vars = self._block_rnn(in_part, batch_size, steps, sx, sy, in_part_channels, out_part_channels, initstates[name_crnn], LSTM)
+                    out_part, block_rnn_vars = block_rnn(in_part, batch_size, steps, sx, sy, in_part_channels, out_part_channels, initstates[name_crnn], LSTM)
                     variables.extend(block_rnn_vars)
                     return out_part
         
@@ -61,16 +64,14 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
                 if layer == 0:
                     # in_node.shape is [batch_size, steps, sx, sy, ?]
                     with tf.variable_scope('input_layer'):
-                        in_node_ori_channels = (self.channels + self.n_class) if INIT is True else self.channels
+                        in_node_ori_channels = (channels + n_class) if INIT is True else channels
                         if LSTM is True:
-                            in_node_channels = 2 * (self.channels + self.n_class) if INIT is True else (self.channels + self.n_class)
+                            in_node_channels = 2 * (channels + n_class) if INIT is True else (channels + n_class)
                         else:
-                            in_node_channels = self.channels + self.n_class
-                        w_lstminit = weight_variable('w_initfc', [in_node_ori_channels, in_node_channels], stddev)
-                        b_lstminit = bias_variable('b_initfc', [in_node_channels])
-                        variables.extend((w_lstminit, b_lstminit))
+                            in_node_channels = channels + n_class
+
                         in_node = tf.reshape(in_node, [-1, in_node_ori_channels])
-                        in_node = tf.nn.relu(tf.matmul(in_node, w_lstminit) + b_lstminit)
+                        in_node = fc_relu('fc_init', in_node, in_node_ori_channels, in_node_channels, stddev)
                         in_node = tf.reshape(in_node, [batch_size*steps, sx, sy, in_node_channels])
                 else:
                     in_node_channels = features //2
@@ -89,7 +90,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
     
                 # for up layers's input.
                 # it should be noticed that this part is the result after an block_rnn opt.
-                dw_h_convs[layer] = conv2_relu_r
+                dw_h_convs[layer] = in_node
                 
                 if layer < layers-1:
                     # maxpool
@@ -108,16 +109,6 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
                     features = features * 2
                 stddev = np.sqrt(2 / (filter_size**2 * features))
 
-                # conv vars
-                wd = weight_variable('wd', [pool_size, pool_size, features//2, features], stddev)
-                bd = bias_variable('bd', [features//2])
-                w1 = weight_variable('w1', [filter_size, filter_size, features, features//2], stddev)
-                w2 = weight_variable('w2', [filter_size, filter_size, features//2, features//2], stddev)
-                b1 = bias_variable('b1', [features//2])
-                b2 = bias_variable('b2', [features//2])
-                variables.extend((wd,bd,w1,w2,b1,b2))
-
-                # block_rnn for input
                 in_node = block_rnn_part('up'+str(layer)+'_in', in_node, features)
 
                 # deconv layer
@@ -145,13 +136,10 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
         if True == INIT:
             return None
         else:
-            weight = weight_variable('weight', [1, 1, features_root, self.n_class], stddev)
-            bias = bias_variable('bias', [self.n_class])
-            variables.extend((weight, bias))
-            conv = conv2d(in_node, weight, tf.constant(1.0))
-            output_map = tf.nn.relu(conv + bias)
+            output_map = conv_relu('conv_out', in_node, 1, features_root, n_class, 1.0, stddev)
             up_h_convs["out"] = output_map
-            output_map = self._reshape_to_5dim(output_map, batch_size, steps)
+
+            output_map = tf.reshape(output_map, [batch_size, steps, sx, sy, n_class])
 
             # softmax
             output_map = tf.nn.softmax(output_map)
@@ -172,8 +160,9 @@ if __name__ == '__main__':
     class_num = 2
     nx = 100
     ny = 100
+    keep_prob = 0.9
     firstframe = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, 1, nx, ny, bands])
     firstlabel = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, 1, nx, ny, class_num])
     otherframes = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, othersteps, nx, ny, bands])
-    res, vs = create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes)
+    res, vs = create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, bands, class_num, keep_prob)
     print(res)

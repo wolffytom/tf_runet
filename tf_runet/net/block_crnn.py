@@ -24,7 +24,7 @@ def dynamic_c_lstm(nx, ny, x, x_channels, out_channels, initstate = None):
             out, _statei = tf.nn.dynamic_rnn(
                 rnnCell,
                 inputs=x,
-                initial_state=LSTMStateTuple(initstate_split[0], initstate_split[1]),
+                initial_state=tf.contrib.rnn.LSTMStateTuple(initstate_split[0], initstate_split[1]),
                 time_major=False
             )
         else:
@@ -67,7 +67,7 @@ def dynamic_c_rnn(nx, ny, x, x_channels, initstate, out_state_channels):
 def block_rnn(in_node, batch_size, steps, sx, sy, in_channels, out_channels, initstate, LSTM = True):
     in_node = tf.reshape(in_node, [batch_size, steps, sx, sy, in_channels])
     if LSTM is True:
-        in_node, variables = dynamic_c_lstmnn(sx, sy, in_node, in_channels, out_channels, initstate)
+        in_node, variables = dynamic_c_lstm(sx, sy, in_node, in_channels, out_channels, initstate)
     else:
         in_node, variables = dynamic_c_rnn(sx, sy, in_node, in_channels, initstate, out_channels)
     in_node = tf.reshape(in_node, [batch_size * steps, sx, sy, out_channels])

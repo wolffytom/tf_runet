@@ -6,11 +6,17 @@ def weight_variable(name, shape, stddev=0.1):
 def bias_variable(name, shape):
     return tf.get_variable(name, shape=shape)
 
+def fc_relu(name, x, in_channels, out_channels, w_stddev):
+    with tf.variable_scope(name):
+        w = weight_variable('w', [in_channels, out_channels], w_stddev)
+        b = bias_variable('b', [out_channels])
+        return tf.nn.relu(tf.matmul(x, w) + b)
+
 def conv_relu(name, x, filter_size, in_channels, out_channels, keep_prob, w_stddev):
     with tf.variable_scope(name):
         w = weight_variable('w', [filter_size, filter_size, in_channels, out_channels], w_stddev)
         b = bias_variable('b', [out_channels])
-        return tf.nn.relu(tf.dropout(tf.nn.conv2d(x, W, strides=[1,1,1,1], padding='VALID'), keep_prob))
+        return tf.nn.relu(tf.nn.dropout(tf.nn.conv2d(x, w, strides=[1,1,1,1], padding='VALID'), keep_prob))
 
 def dconv_relu(name, x, pool_size, in_channels, out_channels, w_stddev):
     with tf.variable_scope(name):
