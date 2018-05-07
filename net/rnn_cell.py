@@ -1,9 +1,10 @@
 import tensorflow as tf
 
 from tensorflow.contrib import rnn
-from layer_ops import weight_variable
-from layer_ops import bias_variable
-from layer_ops import conv2d
+
+from net.layer_ops import weight_variable
+from net.layer_ops import bias_variable
+from net.layer_ops import conv2d
 
 class block_C_RNNCell(rnn.RNNCell):
     """The most basic RNN cell.

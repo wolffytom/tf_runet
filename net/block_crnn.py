@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from rnn_cell import block_C_RNNCell
+from net.rnn_cell import block_C_RNNCell
 
 def dynamic_c_lstm(nx, ny, x, x_channels, out_channels, initstate = None):
     """c-rnn

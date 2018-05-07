@@ -2,15 +2,19 @@ import tensorflow as tf
 import numpy as np
 from collections import OrderedDict
 
-from layer_ops import conv_relu
-from layer_ops import dconv_relu
-from layer_ops import fc_relu
-from layer_ops import max_pool
-from layer_ops import crop_and_concat
-from block_crnn import block_rnn
+from net.layer_ops import conv_relu
+from net.layer_ops import dconv_relu
+from net.layer_ops import fc_relu
+from net.layer_ops import max_pool
+from net.layer_ops import crop_and_concat
+from net.block_crnn import block_rnn
 
-def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels, n_class, keep_prob,
-        layers=3, features_root=16, filter_size=3, pool_size=2, summaries=True, LSTM = True):
+def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels, n_class, keep_prob, cfg):
+    layers = cfg.layers
+    features_root = cfg.features_root
+    filter_size = cfg.cnn_kernel_size
+    pool_size = cfg.pool_size
+    LSTM = cfg.LSTM
     first_frameandlabel = tf.concat([firstframe,firstlabel], axis = 4)
     # first.shape is [batch_size, 1, nx, ny, self.channels + self.n_class]
     initstates = {}
@@ -142,7 +146,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
             output_map = tf.reshape(output_map, [batch_size, steps, sx, sy, n_class])
 
             # softmax
-            output_map = tf.nn.softmax(output_map)
+            output_map = tf.nn.softmax(output_map, name = 'output_map')
             return output_map
 
     # calculate the initstates
@@ -151,8 +155,28 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
 
     # process other frames
     with tf.variable_scope('other_frames', reuse = tf.AUTO_REUSE):
-        return _ru_part(False, otherframes), variables
+        return _ru_part(False, otherframes)
 
+def calculate_offset(nx, ny, cfg):
+    sx = nx
+    sy = ny
+    layers = cfg.layers
+    # down layers
+    for layer in range(0, layers):
+        sx -= 4
+        sy -= 4
+        if layer < layers-1:
+            sx = sx//2
+            sy = sy//2
+    # up layers
+    for layer in range(layers-2, -1, -1):
+        sx = sx * 2 - 4
+        sy = sy * 2 - 4
+    offsetx = (nx - sx) // 2
+    offsety = (ny - sy) // 2
+    return sx, offsetx, sy, offsety
+
+from config import cfg
 if __name__ == '__main__':
     batch_size = 10
     othersteps = 20
@@ -164,5 +188,5 @@ if __name__ == '__main__':
     firstframe = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, 1, nx, ny, bands])
     firstlabel = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, 1, nx, ny, class_num])
     otherframes = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, othersteps, nx, ny, bands])
-    res, vs = create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, bands, class_num, keep_prob)
+    res, vs = create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, bands, class_num, keep_prob, cfg)
     print(res)
