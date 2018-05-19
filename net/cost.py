@@ -10,6 +10,19 @@ def get_cost(logits, labels, n_class, marks, regularizer, cfg):
     with tf.variable_scope('cost', reuse = tf.AUTO_REUSE):
         flat_logits = tf.reshape(logits, [-1, n_class])
         flat_labels = tf.reshape(labels, [-1, n_class])
+        
+        class_accuracy_list = []
+        labels_split = tf.split(flat_labels,n_class,axis=1)
+        correct_prediction = tf.cast(tf.equal(tf.argmax(flat_logits, axis=1), tf.argmax(flat_labels, axis=1)), tf.float32)
+        for i_class in range(n_class):
+            labels_split[i_class] = tf.reshape(labels_split[i_class], [-1])
+            i_class_correct = tf.cast(tf.tensordot(labels_split[i_class], correct_prediction, axes=1), tf.float32)
+            i_class_times = tf.cast(tf.reduce_sum(labels_split[i_class]), tf.float32)
+            i_class_accuracy = i_class_correct / i_class_times
+            class_accuracy_list.append(tf.reshape(i_class_accuracy, [1]))
+        class_accuracy = tf.concat(class_accuracy_list,axis = 0)
+        total_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
         if cfg.cost_name == "cross_entropy":
             lossmap = tf.nn.softmax_cross_entropy_with_logits(logits=flat_logits,labels=flat_labels)
 
@@ -51,6 +64,6 @@ def get_cost(logits, labels, n_class, marks, regularizer, cfg):
             l2_loss = tf.add_n([tf.nn.l2_loss(tf.cast(v, tf.float32)) for v in tf.trainable_variables()])
             loss += l2_loss * cfg.regularizer_scale
             
-        return loss
+        return loss, class_accuracy, total_accuracy
 
 
