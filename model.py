@@ -10,9 +10,9 @@ class Model(object):
         self._optimizer = self._create_optimizer(cfg.optimizer)
         self._base_net = self.get_net(cfg.base_net_size, cfg.base_net_size)
         if cfg.useGPU:
-            self._sess = tf.Session()
+            self.sess = tf.Session()
         else:
-            self._sess = tf.Session(config=tf.ConfigProto(device_count={'gpu':0}))
+            self.sess = tf.Session(config=tf.ConfigProto(device_count={'gpu':0}))
         self.offset = self._base_net.offsetx
 
         self.cost = tf.placeholder(name = 'runet.cost', dtype = tf.float32, shape=None)
@@ -52,6 +52,8 @@ class Model(object):
         n_class = np.shape(gtdata)[4]
         assert cfg.n_class == n_class
 
+        print(iptdata.shape)
+
         net = self.get_net(nx, ny)
         if cfg.use_mark:
             feed_dict = {
@@ -68,12 +70,12 @@ class Model(object):
             }
 
         _opt, cost, total_accuracy, class_accuracy, otherlabels, predict = self.sess.run((
-            self.optimizer.minimize(net.cost),
+            self._optimizer.minimize(net.cost),
             net.cost,
             net.total_accuracy,
             net.class_accuracy,
             net.otherlabels,
-            net.predict), feed_dict=feed_dict)
+            net.predicts), feed_dict=feed_dict)
         
         summary = self.sess.run(tf.summary.merge_all(), feed_dict={
             self.cost:cost, 

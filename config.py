@@ -29,7 +29,7 @@ parser.add_argument('--use_class_weights', type=bool, default=False)
 parser.add_argument('--optimizer', type=str, default='Adam')
 parser.add_argument('--keep_prob', type=float, default=0.8)
 parser.add_argument('--batch_size', type=int, default=10)
-parser.add_argument('--max_step', type=int, default=10)
+parser.add_argument('--max_step', type=int, default=2)
 parser.add_argument('--learning_rate', type=float, default=0.002)
 
 parser.add_argument('--useGPU', type=bool, default=False)

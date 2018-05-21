@@ -7,8 +7,8 @@ import numpy as np
 from PIL import Image
 
 def train(model_path = None,
-          save_path = '/home/gege/dong/tf_runet/models/20180521',
-          pro_path = '/home/gege/dong/tf_runet',
+          save_path = '/home/cjl/tf_runet/models/20180521',
+          pro_path = '/home/cjl/tf_runet',
           max_size = None,
           total_step = 0,
           display = False,
@@ -22,9 +22,9 @@ def train(model_path = None,
     model = Model()
     train_writer = tf.summary.FileWriter(save_path, model.sess.graph)
     if model_path is None:
-        runet._init_vars_random()
+        model.init_vars_random()
     else:
-        runet.restore(model_path)
+        model.restore(model_path)
 
     import psutil
     training = True
@@ -32,7 +32,7 @@ def train(model_path = None,
         total_step += 1
         print('--------------------------------------')
         print('total_step:', total_step)
-        iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(batch_size, cfg.max_step, cfg.max_size,model.offset)
+        iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(cfg.batch_size, cfg.max_step, max_size,model.offset)
         summary, cost, total_accuracy, class_accuracy, otherlabels, predict = model.train(iptdata, gtdata, data_provider.get_mark)
         print("cost:", cost, " total_accuracy:" , total_accuracy, " class_accuracy:" , class_accuracy)
         train_writer.add_summary(summary, total_step)
