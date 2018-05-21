@@ -8,8 +8,12 @@ class Model(object):
     def __init__(self):
         self._nets = {}
         self._optimizer = self._create_optimizer(cfg.optimizer)
-        self._sess = tf.Session()
         self._base_net = self.get_net(cfg.base_net_size, cfg.base_net_size)
+        if cfg.useGPU:
+            self._sess = tf.Session()
+        else:
+            self._sess = tf.Session(config=tf.ConfigProto(device_count={'gpu':0}))
+        self.offset = self._base_net.offsetx
 
         self.cost = tf.placeholder(name = 'runet.cost', dtype = tf.float32, shape=None)
         tf.summary.scalar('cost', self.cost)
@@ -23,11 +27,13 @@ class Model(object):
         for i in range(cfg.n_class):
             tf.summary.scalar('class_' + str(i) + '_accuracy', tf.reshape(class_accuracy_list[i], shape = []))
             tf.summary.histogram('class_'+ str(i) + '_predict', tf.reshape(predict_flat_split[i], [-1]))
- 
+
+    def init_vars_random(self):
+        self.sess.run(tf.global_variables_initializer())
 
     def get_net(self, nx, ny):
         scrpt = False
-        netname = str(nx) + ',' + str(ny)
+        netname = str(nx) + 'x' + str(ny)
         if netname in self._nets:
             if scrpt:
                 print('get_net_from_nets')
@@ -76,14 +82,12 @@ class Model(object):
             self.predict:predict})
         return summary, cost, total_accuracy, class_accuracy, otherlabels, predict
 
-
-
     def _create_optimizer(self, optimizer = "Adam"):
         with tf.variable_scope('Model._optimizer'):
             if optimizer == "RMSProp":
-                return tf.train.RMSPropOptimizer(learning_rate = args.learning_rate)
+                return tf.train.RMSPropOptimizer(learning_rate = cfg.learning_rate)
             elif optimizer == "Adam":
-                return tf.train.AdamOptimizer(learning_rate=args.learning_rate)
+                return tf.train.AdamOptimizer(learning_rate=cfg.learning_rate)
             else:
                 return None
  
