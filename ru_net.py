@@ -18,7 +18,7 @@ class Ru_net(object):
             regularizer = tf.contrib.layers.l2_regularizer(scale=cfg.regularizer_scale)
         else:
             regularizer = None
-        with tf.variable_scope('Ru_net'+name, reuse = tf.AUTO_REUSE,
+        with tf.variable_scope('Ru_net', reuse = tf.AUTO_REUSE,
                 regularizer = regularizer):
             self.inputs = tf.placeholder(name = 'imgs', dtype = tf.float32, shape=[None, None, nx, ny, self.channels])
             self.labels = tf.placeholder(name = 'labels', dtype = tf.float32, shape=[None, None, nx, ny, self.n_class])

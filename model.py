@@ -3,14 +3,16 @@ import tensorflow as tf
 
 from ru_net import Ru_net
 from config import cfg
+from sess import get_sess
 
 class Model(object):
     def __init__(self):
         self._nets = {}
-        self._optimizer = self._create_optimizer(cfg.optimizer)
         self._base_net = self.get_net(cfg.base_net_size, cfg.base_net_size)
+        self._optimizer = self._create_optimizer(cfg.optimizer)
+        self._base_net_minimizer = self._optimizer.minimize(self._base_net.cost)
         if cfg.useGPU:
-            self.sess = tf.Session()
+            self.sess = tf.Session()#get_sess()
         else:
             self.sess = tf.Session(config=tf.ConfigProto(device_count={'gpu':0}))
         self.offset = self._base_net.offsetx

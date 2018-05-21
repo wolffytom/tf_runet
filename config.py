@@ -32,7 +32,7 @@ parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--max_step', type=int, default=2)
 parser.add_argument('--learning_rate', type=float, default=0.002)
 
-parser.add_argument('--useGPU', type=bool, default=False)
+parser.add_argument('--useGPU', type=bool, default=True)
 
 cfg = parser.parse_args()
 # additional parameters
