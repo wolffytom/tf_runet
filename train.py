@@ -6,6 +6,9 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image
 
+import os
+import sys
+
 def train(model_path = None,
           save_path = '/home/cjl/tf_runet/models/20180521',
           pro_path = '/home/cjl/tf_runet',
@@ -60,7 +63,10 @@ if __name__ == '__main__':
     #train('/home/cjl/models/20171127/train200')
     #newclass()
     #predict('/home/cjl/models/20171201/train150')
+
+    scripts_path = os.path.split( os.path.realpath( sys.argv[0] ) )[0]
     train(
-        #model_path = '/home/cjl/models/20180102/train100',
+        pro_path = scripts_path,
+        save_path = scripts_path + '/models/20180522',
         max_size = (300,300),
         dataidx = 10)
