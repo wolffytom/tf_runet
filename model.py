@@ -47,14 +47,17 @@ class Model(object):
             self._nets[netname] = newnet
             return newnet
 
-    def train(self, iptdata, gtdata, get_mark_func):
+    def train(self, iptdata, gtdata, get_mark_func,
+            print_datainfo = False):
         iptdata_shape = np.shape(iptdata)
         batch_size, steps, nx, ny, channels = iptdata_shape
         assert cfg.channels == channels
         n_class = np.shape(gtdata)[4]
         assert cfg.n_class == n_class
 
-        print(iptdata.shape)
+        if print_datainfo:
+            print('iptdata.shape:', iptdata.shape)
+            print('gtdata.shape:', gtdata.shape)
 
         net = self.get_net(nx, ny)
         if cfg.use_mark:

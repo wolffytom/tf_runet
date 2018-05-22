@@ -16,6 +16,7 @@ def train(model_path = None,
           total_step = 0,
           display = False,
           displaystep = 30,
+          save = False,
           dataidx = 10):
     print('begin_train')
     data_path = pro_path + '/data/vot2016'
@@ -53,9 +54,9 @@ def train(model_path = None,
                     proc.kill()
             Image.fromarray(img).show(title='0,5')
         print('--------------------------------------')
-        if (total_step % 10 == 0):
+        if (save and total_step % 10 == 0):
             filename = save_path + '/train' + str(total_step)
-            runet.save(filename)
+            model.save(filename)
     print('========================================')
 
 if __name__ == '__main__':
