@@ -61,10 +61,11 @@ class Model(object):
 
         net = self.get_net(nx, ny)
         if cfg.use_mark:
+            othermarks = get_mark_func((iptdata, gtdata),net.offsetx,(net.sx,net.sy))
             feed_dict = {
                 net.inputs: iptdata,
                 net.labels: gtdata,
-                net.othermarks: get_mark_func((iptdata, gtdata),net.offsetx,(net.sx,net.sy)),
+                net.othermarks: othermarks,
                 net.keep_prob: cfg.keep_prob
             }
         else:

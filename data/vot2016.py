@@ -56,11 +56,12 @@ class VOT2016_Data_Provider():
             self.nxs.append(len(im1_np))
             self.nys.append(len(im1_np[0]))
             assert(len(im1_np[0][0]) == self.channals)
-        print(self.datalength)
-        print(self.datanamelist)
-        print('DataOK, loaded %d groups data.' % (len(self.datalength)))
-        print('Max steps:%d' % (self.maxsteps))
-        print('Min steps:%d' % (self.minsteps))
+        if cfg.print_dataloading:
+            print(self.datalength)
+            print(self.datanamelist)
+            print('DataOK, loaded %d groups data.' % (len(self.datalength)))
+            print('Max steps:%d' % (self.maxsteps))
+            print('Min steps:%d' % (self.minsteps))
         self.dataidx = 0
         self.nowdata = None
         self.batchidx = 0
@@ -101,7 +102,8 @@ class VOT2016_Data_Provider():
 
     def get_a_random_batch(self):
         batchidx = random.randint(0, self.batch_nums-1)
-        print('batchidx:', batchidx)
+        if self.cfg.print_batchidx:
+            print('batchidx:', batchidx)
         dataidx, start = self.batches[batchidx]
         inputdata, gtdataonehot = self.get_images(dataidx, start, self.batch_size * self.steps)
         nx = self.nxs[dataidx]
@@ -224,17 +226,21 @@ class VOT2016_Data_Provider():
                     othermark[i_b][i_s] = np.ones([nx,ny], dtype=np.float32)
                     continue
                 om_flat = othermark[i_b][i_s].reshape(nl)
-                classzerotime = int(classonesum * 0.9)
+                classzerotime = int(classonesum * self.cfg.zeromark_percentage)
                 for i in range(classzerotime):
                     a = random.randint(0,nl-1)
                     while om_flat[a] == 1:
                         ox += 1
                         a = random.randint(0,nl-1)
                     om_flat[a] = 1
-                #zerors = np.dot(otherlabels[i_b][i_s][:,:,0].reshape(nl), othermark[i_b][i_s].reshape(nl))
-                #oners = np.dot(otherlabels[i_b][i_s][:,:,1].reshape(nl), othermark[i_b][i_s].reshape(nl))
-                #print('zero:',zerors,'---one:',oners)
-        #print(ox)
+        if self.cfg.print_marks_distribution:
+            marks_length = batch_size * steps * nx * ny
+            flat_marks = othermark.reshape(marks_length)
+            flat_labels_0 = otherlabels[:,:,:,:,0].reshape(marks_length)
+            flat_labels_1 = otherlabels[:,:,:,:,1].reshape(marks_length)
+            zeros = np.dot(flat_labels_0, flat_marks)
+            ones = np.dot(flat_labels_1, flat_marks)
+            print('marks: 0:' + str(zeros) + ' 1:' + str(ones))
         return othermark
 
     def __call__(self, batch_size = 1):

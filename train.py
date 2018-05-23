@@ -10,7 +10,7 @@ import os
 import sys
 
 def train(model_path = None,
-          save_path = '/home/cjl/tf_runet/models/20180521',
+          save_path = '/home/cjl/tf_runet/models/20180523',
           pro_path = '/home/cjl/tf_runet',
           max_size = None,
           total_step = 0,

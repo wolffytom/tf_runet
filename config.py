@@ -7,6 +7,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--channels', type=int, default=3)
 parser.add_argument('--n_class', type=int, default=2)
 parser.add_argument('--use_mark', type=bool, default=True)
+parser.add_argument('--zeromark_percentage', type=float, default=1)
 parser.add_argument('--use_max_size', type=bool, default=True)
 parser.add_argument('--max_size_x', type=int, default=300)
 parser.add_argument('--max_size_y', type=int, default=300)
@@ -36,6 +37,11 @@ parser.add_argument('--max_step', type=int, default=2)
 parser.add_argument('--learning_rate', type=float, default=0.002)
 
 parser.add_argument('--useGPU', type=bool, default=True)
+
+# print for debug
+parser.add_argument('--print_marks_distribution', type=bool, default=True)
+parser.add_argument('--print_batchidx', type=bool, default=False)
+parser.add_argument('--print_dataloading', type=bool, default=False)
 
 cfg = parser.parse_args()
 # additional parameters
