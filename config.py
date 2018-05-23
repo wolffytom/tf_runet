@@ -9,7 +9,7 @@ parser.add_argument('--n_class', type=int, default=2)
 parser.add_argument('--use_mark', type=bool, default=False)
 
 # net architecture parameters
-parser.add_argument('--layers', type=int, default=3)
+parser.add_argument('--layers', type=int, default=1)
 parser.add_argument('--features_root', type=int, default=16)
 parser.add_argument('--cnn_kernel_size', type=int, default=3)
 parser.add_argument('--pool_size', type=int, default=2)
