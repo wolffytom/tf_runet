@@ -40,6 +40,7 @@ def get_cost(logits, labels, n_class, marks, regularizer, cfg):
                 flat_marks = tf.reshape(marks, [-1])
                 lossmap = tf.tensordot(lossmap, flat_marks, axes=1)
                 loss = tf.reduce_sum(lossmap) / tf.reduce_sum(flat_marks)
+
             else:
                 loss = tf.reduce_mean(lossmap)
 

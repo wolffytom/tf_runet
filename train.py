@@ -20,7 +20,8 @@ def train(model_path = None,
           dataidx = 10):
     print('begin_train')
     data_path = pro_path + '/data/vot2016'
-    data_provider = VOT2016_Data_Provider(data_path)
+    data_provider = VOT2016_Data_Provider(data_path, cfg)
+    data_provider.random_batch_init()
     data_provider.dataidx = dataidx
 
     model = Model()
@@ -36,7 +37,8 @@ def train(model_path = None,
         total_step += 1
         print('--------------------------------------')
         print('total_step:', total_step)
-        iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(cfg.batch_size, cfg.max_step, max_size,model.offset)
+        #iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(cfg.batch_size, cfg.max_step, max_size,model.offset)
+        iptdata, gtdata = data_provider.get_a_random_batch()
         summary, cost, total_accuracy, class_accuracy, otherlabels, predict = model.train(iptdata, gtdata, data_provider.get_mark)
         print("cost:", cost, " total_accuracy:" , total_accuracy, " class_accuracy:" , class_accuracy)
         train_writer.add_summary(summary, total_step)

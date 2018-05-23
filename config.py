@@ -6,7 +6,10 @@ parser = argparse.ArgumentParser()
 # data parameters
 parser.add_argument('--channels', type=int, default=3)
 parser.add_argument('--n_class', type=int, default=2)
-parser.add_argument('--use_mark', type=bool, default=False)
+parser.add_argument('--use_mark', type=bool, default=True)
+parser.add_argument('--use_max_size', type=bool, default=True)
+parser.add_argument('--max_size_x', type=int, default=300)
+parser.add_argument('--max_size_y', type=int, default=300)
 
 # net architecture parameters
 parser.add_argument('--layers', type=int, default=1)
@@ -28,7 +31,7 @@ parser.add_argument('--use_class_weights', type=bool, default=False)
 # train parameters
 parser.add_argument('--optimizer', type=str, default='Adam')
 parser.add_argument('--keep_prob', type=float, default=0.8)
-parser.add_argument('--batch_size', type=int, default=10)
+parser.add_argument('--batch_size', type=int, default=5)
 parser.add_argument('--max_step', type=int, default=2)
 parser.add_argument('--learning_rate', type=float, default=0.002)
 

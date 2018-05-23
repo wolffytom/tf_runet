@@ -6,7 +6,8 @@ import sys
 #from tqdm import * #pip3 install tqdm
 
 class VOT2016_Data_Provider():
-    def __init__(self,pathofvot2016):
+    def __init__(self,pathofvot2016, cfg):
+        self.cfg = cfg
         pathofinput = pathofvot2016 + '/images'
         pathofgroundtruth = pathofvot2016 + '/groundtruths'
         self.datanamelist = os.listdir(pathofgroundtruth)
@@ -16,8 +17,14 @@ class VOT2016_Data_Provider():
         self.gtedge = []
         self.inputdata = []
         self.gtdata = []
+        self.nxs = []
+        self.nys = []
         self.maxsteps = -1
         self.minsteps = 99999999
+        self.channals = cfg.channels
+        self.n_class = cfg.n_class
+        self.batch_size = cfg.batch_size
+        self.steps = cfg.max_step
         for idata in range(self.datanamesize):
             input_pic_dir = pathofinput + '/' + self.datanamelist[idata]
             input_gt_dir = pathofgroundtruth + '/' + self.datanamelist[idata]
@@ -44,6 +51,11 @@ class VOT2016_Data_Provider():
             self.inputdata.append(piclist)
             self.gtdata.append(gtlist)
             self.gtedge.append(None)
+            im1 = Image.open(piclist[0])
+            im1_np = np.array(im1)
+            self.nxs.append(len(im1_np))
+            self.nys.append(len(im1_np[0]))
+            assert(len(im1_np[0][0]) == self.channals)
         print(self.datalength)
         print(self.datanamelist)
         print('DataOK, loaded %d groups data.' % (len(self.datalength)))
@@ -53,20 +65,63 @@ class VOT2016_Data_Provider():
         self.nowdata = None
         self.batchidx = 0
         #self.bagdata, self.baglabel = self.get_data(8)
-    
+
+    def random_batch_init(self):
+        self.batches = []
+        for dataidx in range(self.datanamesize):
+            start = 0
+            while (True):
+                end = start + self.batch_size*self.steps - 1
+                if end >= self.datalength[dataidx]:
+                    break
+                abatch = (dataidx, start)
+                self.batches.append(abatch)
+                start = end + 1
+        self.batch_nums = len(self.batches)
+        print(str(self.batch_nums) + ' batches ready')
+
+    def get_images(self, dataidx, start, steps):
+        nx = self.nxs[dataidx]
+        ny = self.nys[dataidx]
+        inputdata = np.zeros((steps, nx, ny, self.channals), dtype=np.float32)
+        gtdata = np.zeros((steps, nx, ny), dtype = np.bool)
+        inputnamelist = self.inputdata[dataidx]
+        gtnamelist = self.gtdata[dataidx]
+        for istep in range(steps):#tqdm(range(steps)):
+            im_ipt = Image.open(inputnamelist[start + istep])
+            inputdata[istep] = np.array(im_ipt)
+            im_gt = Image.open(gtnamelist[start + istep])
+            gtdata[istep] = np.array(im_gt)
+        gtdata = gtdata.astype(np.int32)
+        gtdata = gtdata.reshape((steps*nx*ny))
+        gtdataonehot = np.zeros((steps*nx*ny, 2), dtype=np.float32)
+        gtdataonehot[np.arange(steps*nx*ny), gtdata] = 1
+        gtdataonehot = gtdataonehot.reshape((steps,nx,ny,2))
+        return (inputdata, gtdataonehot)
+
+    def get_a_random_batch(self):
+        batchidx = random.randint(0, self.batch_nums-1)
+        print('batchidx:', batchidx)
+        dataidx, start = self.batches[batchidx]
+        inputdata, gtdataonehot = self.get_images(dataidx, start, self.batch_size * self.steps)
+        nx = self.nxs[dataidx]
+        ny = self.nys[dataidx]
+        inputdata = inputdata.reshape((self.batch_size, self.steps, nx, ny, self.channals))
+        gtdataonehot = gtdataonehot.reshape((self.batch_size, self.steps, nx, ny, self.n_class))
+        datatuple = (inputdata, gtdataonehot)
+        if self.cfg.use_max_size:
+            datatuple = self.subsampling(datatuple, (self.cfg.max_size_x, self.cfg.max_size_y))
+        return datatuple 
+
     def get_data(self, dataidx):
         assert (0 <= dataidx and dataidx < self.datanamesize)
         datname = self.datanamelist[dataidx]
         inputnamelist = self.inputdata[dataidx]
         gtnamelist = self.gtdata[dataidx]
         steps = self.datalength[dataidx]
-        im1 = Image.open(inputnamelist[0])
-        im1_np = np.array(im1)
-        nx = len(im1_np)
-        ny = len(im1_np[0])
-        channals = len(im1_np[0][0])
-        assert(channals == 3)
-        np.zeros(4)
+        nx = self.nxs[dataidx]
+        ny = self.nys[dataidx]
+        channals = self.channals
         inputdata = np.zeros((steps, nx, ny, channals), dtype=np.float32)
         gtdata = np.zeros((steps, nx, ny), dtype = np.bool)
         print('loading data ' ,datname, '...')
@@ -176,10 +231,10 @@ class VOT2016_Data_Provider():
                         ox += 1
                         a = random.randint(0,nl-1)
                     om_flat[a] = 1
-                zerors = np.dot(otherlabels[i_b][i_s][:,:,0].reshape(nl), othermark[i_b][i_s].reshape(nl))
-                oners = np.dot(otherlabels[i_b][i_s][:,:,1].reshape(nl), othermark[i_b][i_s].reshape(nl))
+                #zerors = np.dot(otherlabels[i_b][i_s][:,:,0].reshape(nl), othermark[i_b][i_s].reshape(nl))
+                #oners = np.dot(otherlabels[i_b][i_s][:,:,1].reshape(nl), othermark[i_b][i_s].reshape(nl))
                 #print('zero:',zerors,'---one:',oners)
-        print(ox)
+        #print(ox)
         return othermark
 
     def __call__(self, batch_size = 1):
