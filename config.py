@@ -11,6 +11,7 @@ parser.add_argument('--zeromark_percentage', type=float, default=1)
 parser.add_argument('--use_max_size', type=bool, default=True)
 parser.add_argument('--max_size_x', type=int, default=300)
 parser.add_argument('--max_size_y', type=int, default=300)
+parser.add_argument('--norm_input', type=bool, default=True)
 
 # net architecture parameters
 parser.add_argument('--layers', type=int, default=1)

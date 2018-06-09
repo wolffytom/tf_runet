@@ -93,6 +93,8 @@ class VOT2016_Data_Provider():
             inputdata[istep] = np.array(im_ipt)
             im_gt = Image.open(gtnamelist[start + istep])
             gtdata[istep] = np.array(im_gt)
+        if self.cfg.norm_input:
+            inputdata = inputdata / 255
         gtdata = gtdata.astype(np.int32)
         gtdata = gtdata.reshape((steps*nx*ny))
         gtdataonehot = np.zeros((steps*nx*ny, 2), dtype=np.float32)
