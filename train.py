@@ -10,13 +10,13 @@ import os
 import sys
 
 def train(model_path = None,
-          save_path = '/home/cjl/tf_runet/models/20180523',
+          save_path = '/home/cjl/tf_runet/models/20180610',
           pro_path = '/home/cjl/tf_runet',
           max_size = None,
           total_step = 0,
           display = False,
           displaystep = 30,
-          save = False,
+          save = True,
           dataidx = 10):
     print('begin_train')
     data_path = pro_path + '/data/vot2016'
@@ -56,7 +56,7 @@ def train(model_path = None,
                     proc.kill()
             Image.fromarray(img).show(title='0,5')
         print('--------------------------------------')
-        if (save and total_step % 10 == 0):
+        if (save and total_step % 3 == 0):
             filename = save_path + '/train' + str(total_step)
             model.save(filename)
     print('========================================')
@@ -70,6 +70,6 @@ if __name__ == '__main__':
     scripts_path = os.path.split( os.path.realpath( sys.argv[0] ) )[0]
     train(
         pro_path = scripts_path,
-        save_path = scripts_path + '/models/20180522',
+        save_path = scripts_path + '/models/20180610',
         max_size = (300,300),
         dataidx = 10)

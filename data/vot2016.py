@@ -94,7 +94,7 @@ class VOT2016_Data_Provider():
             im_gt = Image.open(gtnamelist[start + istep])
             gtdata[istep] = np.array(im_gt)
         if self.cfg.norm_input:
-            inputdata = inputdata / 255
+            inputdata = (inputdata * 2 - 255) / 255
         gtdata = gtdata.astype(np.int32)
         gtdata = gtdata.reshape((steps*nx*ny))
         gtdataonehot = np.zeros((steps*nx*ny, 2), dtype=np.float32)
@@ -242,7 +242,7 @@ class VOT2016_Data_Provider():
             flat_labels_1 = otherlabels[:,:,:,:,1].reshape(marks_length)
             zeros = np.dot(flat_labels_0, flat_marks)
             ones = np.dot(flat_labels_1, flat_marks)
-            print('marks: 0:' + str(zeros) + ' 1:' + str(ones))
+            #print('marks: 0:' + str(zeros) + ' 1:' + str(ones))
         return othermark
 
     def __call__(self, batch_size = 1):

@@ -33,6 +33,17 @@ class Model(object):
     def init_vars_random(self):
         self.sess.run(tf.global_variables_initializer())
 
+    def save(self, model_path):
+        saver = tf.train.Saver()
+        save_path = saver.save(self.sess, model_path)
+        print("Model saved in file: %s" % save_path)
+        return save_path
+
+    def restore(self, model_path):
+        saver = tf.train.Saver()
+        saver.restore(self.sess, model_path)
+        print("Model restored from file: %s" % model_path)
+
     def get_net(self, nx, ny):
         scrpt = False
         netname = str(nx) + 'x' + str(ny)
