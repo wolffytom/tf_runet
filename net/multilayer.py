@@ -135,9 +135,13 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
 
         if layers == 1:
             features = features_root * 2
+            stddev = np.sqrt(2 / (filter_size**2 * features))
             if LSTM is True and INIT is True:
                 features = features * 2
-            in_node = conv_relu('one_layer_last_conv', in_node, filter_size, features//2, features//2, keep_prob, stddev)
+            in_node = conv_relu('one_layer_conv1', in_node, filter_size, features//2, features//2, keep_prob, stddev)
+            sx -= 2
+            sy -= 2
+            in_node = conv_relu('one_layer_conv2', in_node, filter_size, features//2, features//2, keep_prob, stddev)
             sx -= 2
             sy -= 2
     
@@ -181,8 +185,8 @@ def calculate_offset(nx, ny, cfg):
         sx = sx * 2 - 4
         sy = sy * 2 - 4
     if layers == 1:
-        sx -= 2
-        sy -= 2
+        sx -= 4 
+        sy -= 4 
     offsetx = (nx - sx) // 2
     offsety = (ny - sy) // 2
     return sx, offsetx, sy, offsety
