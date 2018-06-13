@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+
+
+import os, sys
+sys.path.append( os.path.dirname(__file__ ) )
 from data.vot2016 import VOT2016_Data_Provider
 from config import cfg
 from model import Model
@@ -6,11 +11,8 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image
 
-import os
-import sys
-
 def train(model_path = None,
-          save_path = '/home/cjl/tf_runet/models/20180610',
+          save_path = '/home/cjl/tf_runet/models/20180612',
           pro_path = '/home/cjl/tf_runet',
           max_size = None,
           total_step = 0,
@@ -56,7 +58,7 @@ def train(model_path = None,
                     proc.kill()
             Image.fromarray(img).show(title='0,5')
         print('--------------------------------------')
-        if (save and total_step % 3 == 0):
+        if (save and total_step % 50 == 0):
             filename = save_path + '/train' + str(total_step)
             model.save(filename)
     print('========================================')
@@ -70,6 +72,7 @@ if __name__ == '__main__':
     scripts_path = os.path.split( os.path.realpath( sys.argv[0] ) )[0]
     train(
         pro_path = scripts_path,
-        save_path = scripts_path + '/models/20180610',
+        model_path = None,
+        save_path = scripts_path + '/models/80613l2st2',
         max_size = (300,300),
         dataidx = 10)
