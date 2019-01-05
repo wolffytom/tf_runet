@@ -1,3 +1,4 @@
+#
 import numpy as np
 import tensorflow as tf
 
@@ -93,9 +94,9 @@ class Model(object):
             net.class_accuracy,
             net.otherlabels,
             net.predicts), feed_dict=feed_dict)
-        
+
         summary = self.sess.run(tf.summary.merge_all(), feed_dict={
-            self.cost:cost, 
+            self.cost:cost,
             self.total_accuracy:total_accuracy,
             self.class_accuracy:class_accuracy,
             self.predict:predict})
@@ -109,7 +110,7 @@ class Model(object):
                 return tf.train.AdamOptimizer(learning_rate=cfg.learning_rate)
             else:
                 return None
- 
+
 
 if __name__ == '__main__':
     model = Model()
