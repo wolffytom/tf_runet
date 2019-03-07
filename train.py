@@ -11,6 +11,7 @@ import sklearn
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+from net.cost import calc_auc
 
 def train(model_path = None,
           save_path = '/home/cjl/tf_runet/models/20180612',
@@ -43,7 +44,7 @@ def train(model_path = None,
         #iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(cfg.batch_size, cfg.max_step, max_size,model.offset)
         iptdata, gtdata = data_provider.get_a_random_batch()
         summary, cost, otherlabels, predict = model.train(iptdata, gtdata, data_provider.get_mark)
-        auc = None#sklearn.metrics.(otherlabels, predict)
+        auc = calc_auc(predict, otherlabels)
         print("cost:", cost, " auc:" , auc)
         train_writer.add_summary(summary, total_step)
         if display and (total_step%displaystep) == 0:
