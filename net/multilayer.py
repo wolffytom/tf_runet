@@ -2,6 +2,11 @@ import tensorflow as tf
 import numpy as np
 from collections import OrderedDict
 
+import sys, os
+projdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if projdir not in sys.path:
+    sys.path.append(projdir)
+
 from net.layer_ops import conv_relu
 from net.layer_ops import dconv_relu
 from net.layer_ops import fc_relu
@@ -9,14 +14,17 @@ from net.layer_ops import max_pool
 from net.layer_ops import crop_and_concat
 from net.block_crnn import block_rnn
 
-def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels, n_class, keep_prob, cfg):
+def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels, keep_prob, cfg):
+    print (1)
     layers = cfg.layers
     features_root = cfg.features_root
     filter_size = cfg.cnn_kernel_size
     pool_size = cfg.pool_size
     LSTM = cfg.LSTM
-    first_frameandlabel = tf.concat([firstframe,firstlabel], axis = 4)
-    # first.shape is [batch_size, 1, nx, ny, self.channels + self.n_class]
+    first_frameandlabel = tf.concat(
+        [firstframe,tf.reshape(firstlabel, shape=list(firstlabel.shape)+[1])]
+        , axis = 4)
+    # first.shape is [batch_size, 1, nx, ny, self.channels + 1]
     initstates = {}
     variables = []
     convs = []
@@ -68,11 +76,11 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
                 if layer == 0:
                     # in_node.shape is [batch_size, steps, sx, sy, ?]
                     with tf.variable_scope('input_layer'):
-                        in_node_ori_channels = (channels + n_class) if INIT is True else channels
+                        in_node_ori_channels = (channels + 1) if INIT is True else channels
                         if LSTM is True:
-                            in_node_channels = 2 * (channels + n_class) if INIT is True else (channels + n_class)
+                            in_node_channels = 2 * (channels + 1) if INIT is True else (channels + 1)
                         else:
-                            in_node_channels = channels + n_class
+                            in_node_channels = channels + 1
 
                         in_node = tf.reshape(in_node, [-1, in_node_ori_channels])
                         in_node = fc_relu('fc_init', in_node, in_node_ori_channels, in_node_channels, stddev)
@@ -104,7 +112,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
                     in_node = pools[layer]
     
         in_node = dw_h_convs[layers-1]
-    
+
         # up layers
         for layer in range(layers-2, -1, -1):
             with tf.variable_scope('up-'+str(layer), reuse = tf.AUTO_REUSE):
@@ -152,13 +160,16 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
         if True == INIT:
             return None
         else:
-            output_map = conv_relu('conv_out', in_node, 1, features_root, n_class, 1.0, stddev)
+            output_map = conv_relu('conv_out', in_node, 1, features_root, 1, 1.0, stddev)
             up_h_convs["out"] = output_map
 
-            output_map = tf.reshape(output_map, [batch_size, steps, sx, sy, n_class])
+            output_map = tf.reshape(output_map, [batch_size, steps, sx, sy])
 
             # softmax
-            output_map = tf.nn.softmax(output_map, name = 'output_map')
+            print ('before sigmoid')
+            output_map = tf.nn.sigmoid(output_map, name = 'output_map')
+            print ('after sigmoid')
+            print (.5)
             return output_map
 
     # calculate the initstates
@@ -168,6 +179,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
     # process other frames
     with tf.variable_scope('other_frames', reuse = tf.AUTO_REUSE):
         return _ru_part(False, otherframes)
+    print (5)
 
 def calculate_offset(nx, ny, cfg):
     sx = nx
@@ -191,17 +203,16 @@ def calculate_offset(nx, ny, cfg):
     offsety = (ny - sy) // 2
     return sx, offsetx, sy, offsety
 
-from config import cfg
 if __name__ == '__main__':
+    from config import cfg
     batch_size = 10
     othersteps = 20
     bands = 3
-    class_num = 2
     nx = 100
     ny = 100
     keep_prob = 0.9
     firstframe = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, 1, nx, ny, bands])
-    firstlabel = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, 1, nx, ny, class_num])
+    firstlabel = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, 1, nx, ny])
     otherframes = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, othersteps, nx, ny, bands])
-    res, vs = create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, bands, class_num, keep_prob, cfg)
+    res = create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, bands, keep_prob, cfg)
     print(res)
