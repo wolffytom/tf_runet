@@ -6,6 +6,7 @@ sys.path.append( os.path.dirname(__file__ ) )
 from data.vot2016 import VOT2016_Data_Provider
 from config import cfg
 from model import Model
+import sklearn
 
 import tensorflow as tf
 import numpy as np
@@ -41,8 +42,9 @@ def train(model_path = None,
         print('total_step:', total_step)
         #iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(cfg.batch_size, cfg.max_step, max_size,model.offset)
         iptdata, gtdata = data_provider.get_a_random_batch()
-        summary, cost, total_accuracy, class_accuracy, otherlabels, predict = model.train(iptdata, gtdata, data_provider.get_mark)
-        print("cost:", cost, " total_accuracy:" , total_accuracy, " class_accuracy:" , class_accuracy)
+        summary, cost, otherlabels, predict = model.train(iptdata, gtdata, data_provider.get_mark)
+        auc = None#sklearn.metrics.(otherlabels, predict)
+        print("cost:", cost, " auc:" , auc)
         train_writer.add_summary(summary, total_step)
         if display and (total_step%displaystep) == 0:
             otherlabels = otherlabels[0]
@@ -73,6 +75,6 @@ if __name__ == '__main__':
     train(
         pro_path = scripts_path,
         model_path = None,
-        save_path = scripts_path + '/models/80613l2st2',
+        save_path = scripts_path + '/models/80613l2st2addstdev',
         max_size = (300,300),
         dataidx = 10)

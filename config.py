@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser()
 # data parameters
 parser.add_argument('--channels', type=int, default=3)
 parser.add_argument('--n_class', type=int, default=2)
-parser.add_argument('--use_mark', type=bool, default=True)
+parser.add_argument('--use_mark', type=bool, default=False)
 parser.add_argument('--zeromark_percentage', type=float, default=1)
 parser.add_argument('--use_max_size', type=bool, default=True)
 parser.add_argument('--max_size_x', type=int, default=300)

@@ -98,12 +98,8 @@ class VOT2016_Data_Provider():
                 inputdata = (inputdata * 2 - 255) / 255
             else:
                 inputdata = (inputdata / 255.0)
-        gtdata = gtdata.astype(np.int32)
-        gtdata = gtdata.reshape((steps*nx*ny))
-        gtdataonehot = np.zeros((steps*nx*ny, 2), dtype=np.float32)
-        gtdataonehot[np.arange(steps*nx*ny), gtdata] = 1
-        gtdataonehot = gtdataonehot.reshape((steps,nx,ny,2))
-        return (inputdata, gtdataonehot)
+        gtdata = gtdata.astype(np.float)
+        return (inputdata, gtdata)
 
     def get_a_random_batch(self):
         batchidx = random.randint(0, self.batch_nums-1)
@@ -114,8 +110,8 @@ class VOT2016_Data_Provider():
         nx = self.nxs[dataidx]
         ny = self.nys[dataidx]
         inputdata = inputdata.reshape((self.batch_size, self.steps, nx, ny, self.channals))
-        gtdataonehot = gtdataonehot.reshape((self.batch_size, self.steps, nx, ny, self.n_class))
-        datatuple = (inputdata, gtdataonehot)
+        gtdata = gtdataonehot.reshape((self.batch_size, self.steps, nx, ny))
+        datatuple = (inputdata, gtdata)
         if self.cfg.use_max_size:
             datatuple = self.subsampling(datatuple, (self.cfg.max_size_x, self.cfg.max_size_y))
         return datatuple 
@@ -169,12 +165,12 @@ class VOT2016_Data_Provider():
     
     def subsampling(self, datatuple, max_size):
         max_nx, max_ny = max_size
-        inputdata, gtdataonehot = datatuple
+        inputdata, gtdata = datatuple
         batch_size,steps,nx,ny,channels = inputdata.shape
         timex = (nx + max_nx - 1) // max_nx
         timey = (ny + max_ny - 1) // max_ny
         time = timex if timex > timey else timey
-        return (inputdata[:,:,::time,::time,:], gtdataonehot[:,:,::time,::time,:])
+        return (inputdata[:,:,::time,::time,:], gtdata[:,:,::time,::time])
     
     def get_one_data_with_maxstep_next_batch_t(self, batch_size, max_step, max_size = None, edge = 0):
         if self.nowdata is None:
@@ -215,10 +211,10 @@ class VOT2016_Data_Provider():
         return rd[0], rd[1]#, self.get_mark(rd, edge, centershape)
 
     def get_mark(self, datatuple, edge, centershape):
-        inputdata, gtdataonehot = datatuple
-        batch_size,steps,nx,ny,n_class = gtdataonehot.shape
-        otherlabels = gtdataonehot[: , 1: ,   edge:edge+centershape[0]  ,  edge:edge+centershape[1], :]
-        batch_size,steps,nx,ny,n_class = otherlabels.shape
+        inputdata, gtdata = datatuple
+        batch_size,steps,nx,ny = gtdata.shape
+        otherlabels = gtdata[: , 1: ,   edge:edge+centershape[0]  ,  edge:edge+centershape[1]]
+        batch_size,steps,nx,ny = otherlabels.shape
         othermark = np.zeros([batch_size,steps,nx,ny], dtype=np.float32)
         nl = nx * ny
         ox = 0

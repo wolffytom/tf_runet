@@ -11,7 +11,6 @@ class Ru_net(object):
         self.ny = ny
         self.name = name
         self.channels = cfg.channels
-        self.n_class = cfg.n_class
         self.sx, self.offsetx, self.sy, self.offsety = calculate_offset(nx, ny, cfg)
         
         if cfg.regularizer:
@@ -21,18 +20,19 @@ class Ru_net(object):
         with tf.variable_scope('Ru_net', reuse = tf.AUTO_REUSE,
                 regularizer = regularizer):
             self.inputs = tf.placeholder(name = 'imgs', dtype = tf.float32, shape=[None, None, nx, ny, self.channels])
-            self.labels = tf.placeholder(name = 'labels', dtype = tf.float32, shape=[None, None, nx, ny, self.n_class])
-            self.othermarks = tf.placeholder(name = 'othermarks', dtype = tf.float32, shape=[None, None, self.sx, self.sy])
+            self.labels = tf.placeholder(name = 'labels', dtype = tf.float32, shape=[None, None, nx, ny])
             self.keep_prob = tf.placeholder(name = 'keep_prob', dtype = tf.float32)
             self.firstframe = self.inputs[:,:1,:,:,:]
             self.otherframes = self.inputs[:,1:,:,:,:]
-            self.firstlabel = self.labels[:,:1,:,:,:]
-            self.cutlabels = self.labels[:,:,self.offsetx:self.offsetx + self.sx,self.offsety:self.offsety + self.sy,:]
-            self.otherlabels = self.cutlabels[:,1:,:,:,:]
-            self.predicts = create_ru_net_sp_init(self.nx, self.ny, self.firstframe, self.firstlabel, self.otherframes, self.channels, self.n_class, self.keep_prob, cfg)
-            self.cost, self.class_accuracy, self.total_accuracy = get_cost(self.predicts, self.otherlabels, self.n_class, self.othermarks, regularizer, cfg)
+            self.firstlabel = self.labels[:,:1,:,:]
+            self.cutlabels = self.labels[:,:,self.offsetx:self.offsetx + self.sx,self.offsety:self.offsety + self.sy]
+            self.otherlabels = self.cutlabels[:,1:,:,:]
+            self.predicts = create_ru_net_sp_init(
+                self.nx, self.ny, self.firstframe, self.firstlabel, self.otherframes, self.channels, self.keep_prob, cfg)
+            self.cost = get_cost(self.predicts, self.otherlabels, regularizer, cfg)
 
 if __name__ == '__main__':
     net = Ru_net(100, 100, 'testrunet')
     print(net.predicts)
     print(net.cost)
+    print(net.auc)

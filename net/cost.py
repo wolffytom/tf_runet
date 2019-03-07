@@ -1,10 +1,9 @@
 import tensorflow as tf
 
-def get_cost(logits, labels, marks, regularizer, cfg):
+def get_cost(logits, labels, regularizer, cfg):
     with tf.variable_scope('cost', reuse = tf.AUTO_REUSE):
         flat_logits = tf.reshape(logits, [-1])
         flat_labels = tf.reshape(labels, [-1])
-        auc = tf.metrics.auc(flat_labels, flat_logits)
         loss = tf.losses.log_loss(flat_labels, flat_logits)
 
         if cfg.regularizer:
@@ -14,4 +13,4 @@ def get_cost(logits, labels, marks, regularizer, cfg):
             l2_loss = tf.add_n([tf.nn.l2_loss(tf.cast(v, tf.float32)) for v in tf.trainable_variables()])
             loss += l2_loss * cfg.regularizer_scale
             
-        return loss, auc
+        return loss

@@ -19,18 +19,11 @@ class Model(object):
 
         self.cost = tf.placeholder(name = 'runet.cost', dtype = tf.float32, shape=None)
         tf.summary.scalar('cost', self.cost)
-        self.total_accuracy = tf.placeholder(dtype = tf.float32, shape=None)
-        tf.summary.scalar('total_accuracy', self.total_accuracy)
-        self.class_accuracy = tf.placeholder(dtype = tf.float32, shape=[cfg.n_class])
-        class_accuracy_list = tf.split(self.class_accuracy, cfg.n_class,axis=0)
-        self.predict = tf.placeholder(dtype = tf.float32, shape=[None, None, None, None, cfg.n_class])
-        predict_flat = tf.reshape(self.predict, [-1, cfg.n_class])
-        predict_flat_split = tf.split(predict_flat, cfg.n_class,axis=1)
-        for i in range(cfg.n_class):
-            tf.summary.scalar('class_' + str(i) + '_accuracy', tf.reshape(class_accuracy_list[i], shape = []))
-            tf.summary.histogram('class_'+ str(i) + '_predict', tf.reshape(predict_flat_split[i], [-1]))
+        self.predict = tf.placeholder(dtype = tf.float32, shape=[None, None, None, None])
+        predict_flat = tf.reshape(self.predict, [-1])
 
     def init_vars_random(self):
+        self.sess.run(tf.local_variables_initializer())
         self.sess.run(tf.global_variables_initializer())
 
     def save(self, model_path):
@@ -63,8 +56,6 @@ class Model(object):
         iptdata_shape = np.shape(iptdata)
         batch_size, steps, nx, ny, channels = iptdata_shape
         assert cfg.channels == channels
-        n_class = np.shape(gtdata)[4]
-        assert cfg.n_class == n_class
 
         if print_datainfo:
             print('iptdata.shape:', iptdata.shape)
@@ -72,11 +63,10 @@ class Model(object):
 
         net = self.get_net(nx, ny)
         if cfg.use_mark:
-            othermarks = get_mark_func((iptdata, gtdata),net.offsetx,(net.sx,net.sy))
+            #othermarks = get_mark_func((iptdata, gtdata),net.offsetx,(net.sx,net.sy))
             feed_dict = {
                 net.inputs: iptdata,
                 net.labels: gtdata,
-                net.othermarks: othermarks,
                 net.keep_prob: cfg.keep_prob
             }
         else:
@@ -86,20 +76,16 @@ class Model(object):
                 net.keep_prob: cfg.keep_prob
             }
 
-        _opt, cost, total_accuracy, class_accuracy, otherlabels, predict = self.sess.run((
+        _opt, cost, otherlabels, predict = self.sess.run((
             self._optimizer.minimize(net.cost),
             net.cost,
-            net.total_accuracy,
-            net.class_accuracy,
             net.otherlabels,
             net.predicts), feed_dict=feed_dict)
         
         summary = self.sess.run(tf.summary.merge_all(), feed_dict={
             self.cost:cost, 
-            self.total_accuracy:total_accuracy,
-            self.class_accuracy:class_accuracy,
             self.predict:predict})
-        return summary, cost, total_accuracy, class_accuracy, otherlabels, predict
+        return summary, cost, otherlabels, predict
 
     def _create_optimizer(self, optimizer = "Adam"):
         with tf.variable_scope('Model._optimizer'):
