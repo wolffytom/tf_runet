@@ -26,7 +26,7 @@ parser.add_argument('--regularizer_scale', type=float, default=0.01)
 parser.add_argument('--base_net_size', type=int, default=100)
 
 # cost architecture parameters
-parser.add_argument('--cost_name', type=str, default='cross_entropy')
+parser.add_argument('--cost_name', type=str, default='log')
 parser.add_argument('--regularizer', type=bool, default=True)
 parser.add_argument('--class_weights', type=list, default=[1,1])
 parser.add_argument('--use_class_weights', type=bool, default=False)

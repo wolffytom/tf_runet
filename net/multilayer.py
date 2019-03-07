@@ -15,15 +15,12 @@ from net.layer_ops import crop_and_concat
 from net.block_crnn import block_rnn
 
 def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels, keep_prob, cfg):
-    print (1)
     layers = cfg.layers
     features_root = cfg.features_root
     filter_size = cfg.cnn_kernel_size
     pool_size = cfg.pool_size
     LSTM = cfg.LSTM
-    first_frameandlabel = tf.concat(
-        [firstframe,tf.reshape(firstlabel, shape=list(firstlabel.shape)+[1])]
-        , axis = 4)
+    first_frameandlabel = tf.concat([firstframe, tf.expand_dims(firstlabel, 4)], axis=4)
     # first.shape is [batch_size, 1, nx, ny, self.channels + 1]
     initstates = {}
     variables = []
@@ -166,10 +163,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
             output_map = tf.reshape(output_map, [batch_size, steps, sx, sy])
 
             # softmax
-            print ('before sigmoid')
             output_map = tf.nn.sigmoid(output_map, name = 'output_map')
-            print ('after sigmoid')
-            print (.5)
             return output_map
 
     # calculate the initstates
@@ -179,7 +173,6 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
     # process other frames
     with tf.variable_scope('other_frames', reuse = tf.AUTO_REUSE):
         return _ru_part(False, otherframes)
-    print (5)
 
 def calculate_offset(nx, ny, cfg):
     sx = nx
