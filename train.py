@@ -11,7 +11,7 @@ import sklearn
 import tensorflow as tf
 import numpy as np
 from PIL import Image
-from net.cost import calc_auc
+from meval import calc_auc
 
 def train(model_path = None,
           save_path = '/home/cjl/tf_runet/models/20180612',
