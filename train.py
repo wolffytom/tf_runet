@@ -37,6 +37,7 @@ def train(model_path = None,
 
     import psutil
     training = True
+    #iptdata, gtdata = data_provider.get_a_random_batch()
     while training:
         total_step += 1
         print('--------------------------------------')
@@ -76,6 +77,6 @@ if __name__ == '__main__':
     train(
         pro_path = scripts_path,
         model_path = None,
-        save_path = scripts_path + '/models/80613l2st2addstdev',
+        save_path = scripts_path + '/models/0329_1',
         max_size = (300,300),
         dataidx = 10)
