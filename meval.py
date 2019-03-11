@@ -18,5 +18,13 @@ def calc_auc(pred, label):
     else:
         return (sum_pos - (num_pos) * (num_pos + 1) / 2) / float(num_pos * num_neg)
 
+def print_step_auc(predict, labels):
+    assert predict.shape == labels.shape
+    batch_size, step, size_x, size_y = predict.shape
+    for istep in range(step):
+        stepauc = calc_auc(predict[:,istep,:,:], labels[:,istep,:,:])
+        print ('step: %5d, auc: %f' % (istep, stepauc))
+
+
 if __name__ == '__main__':
     print (calc_auc([0.1, 0.2, 0.3, 0.4, 0.5], [0, 1, 0, 1, 1]))

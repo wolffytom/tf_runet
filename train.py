@@ -11,7 +11,7 @@ import sklearn
 import tensorflow as tf
 import numpy as np
 from PIL import Image
-from meval import calc_auc
+from meval import calc_auc, print_step_auc
 
 def train(model_path = None,
           save_path = '/home/cjl/tf_runet/models/20180612',
@@ -47,6 +47,8 @@ def train(model_path = None,
         summary, cost, otherlabels, predict = model.train(iptdata, gtdata, data_provider.get_mark)
         auc = calc_auc(predict, otherlabels)
         print("cost:", cost, " auc:" , auc)
+        print_step_auc(predict, otherlabels)
+
         train_writer.add_summary(summary, total_step)
         if display and (total_step%displaystep) == 0:
             otherlabels = otherlabels[0]
