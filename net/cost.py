@@ -6,7 +6,7 @@ def get_cost(logits, labels, regularizer, cfg):
         flat_labels = tf.reshape(labels, [-1])
         loss = tf.losses.log_loss(flat_labels, flat_logits)
 
-        if cfg.regularizer:
+        if cfg.get('regularizer', True):
             #reg_variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
             #reg_term = tf.contrib.layers.apply_regularization(regularizer, reg_variables)
             #loss += reg_term

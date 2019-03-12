@@ -15,11 +15,11 @@ from net.layer_ops import crop_and_concat
 from net.block_crnn import block_rnn
 
 def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels, keep_prob, cfg):
-    layers = cfg.layers
-    features_root = cfg.features_root
-    filter_size = cfg.cnn_kernel_size
-    pool_size = cfg.pool_size
-    LSTM = cfg.LSTM
+    layers = cfg['layers']
+    features_root = cfg['features_root']
+    filter_size = cfg['cnn_kernel_size']
+    pool_size = cfg['pool_size']
+    LSTM = cfg['LSTM']
     first_frameandlabel = tf.concat([firstframe, tf.expand_dims(firstlabel, 4)], axis=4)
     # first.shape is [batch_size, 1, nx, ny, self.channels + 1]
     initstates = {}
@@ -72,7 +72,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
                 # block_rnn for input
                 if layer == 0:
                     # in_node.shape is [batch_size, steps, sx, sy, ?]
-                    with tf.variable_scope('input_layer'):
+                    with tf.variable_scope('input_layer', reuse=tf.AUTO_REUSE):
                         in_node_ori_channels = (channels + 1) if INIT is True else channels
                         if LSTM is True:
                             in_node_channels = 2 * (channels + 1) if INIT is True else (channels + 1)
@@ -177,7 +177,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
 def calculate_offset(nx, ny, cfg):
     sx = nx
     sy = ny
-    layers = cfg.layers
+    layers = cfg['layers']
     # down layers
     for layer in range(0, layers):
         sx -= 4

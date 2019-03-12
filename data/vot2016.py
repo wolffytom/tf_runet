@@ -21,10 +21,10 @@ class VOT2016_Data_Provider():
         self.nys = []
         self.maxsteps = -1
         self.minsteps = 99999999
-        self.channals = cfg.channels
-        self.n_class = cfg.n_class
-        self.batch_size = cfg.batch_size
-        self.steps = cfg.max_step
+        self.channals = cfg['channels']
+        self.n_class = 2
+        self.batch_size = cfg['batch_size']
+        self.steps = cfg['max_step']
         for idata in range(self.datanamesize):
             input_pic_dir = pathofinput + '/' + self.datanamelist[idata]
             input_gt_dir = pathofgroundtruth + '/' + self.datanamelist[idata]
@@ -56,12 +56,6 @@ class VOT2016_Data_Provider():
             self.nxs.append(len(im1_np))
             self.nys.append(len(im1_np[0]))
             assert(len(im1_np[0][0]) == self.channals)
-        if cfg.print_dataloading:
-            print(self.datalength)
-            print(self.datanamelist)
-            print('DataOK, loaded %d groups data.' % (len(self.datalength)))
-            print('Max steps:%d' % (self.maxsteps))
-            print('Min steps:%d' % (self.minsteps))
         self.dataidx = 0
         self.nowdata = None
         self.batchidx = 0
@@ -93,8 +87,8 @@ class VOT2016_Data_Provider():
             inputdata[istep] = np.array(im_ipt)
             im_gt = Image.open(gtnamelist[start + istep])
             gtdata[istep] = np.array(im_gt)
-        if self.cfg.norm_input:
-            if self.cfg.norm_input_minus:
+        if self.cfg['norm_input']:
+            if self.cfg['norm_input_minus']:
                 inputdata = (inputdata * 2 - 255) / 255
             else:
                 inputdata = (inputdata / 255.0)
@@ -103,8 +97,6 @@ class VOT2016_Data_Provider():
 
     def get_a_random_batch(self):
         batchidx = random.randint(0, self.batch_nums-1)
-        if self.cfg.print_batchidx:
-            print('batchidx:', batchidx)
         dataidx, start = self.batches[batchidx]
         inputdata, gtdataonehot = self.get_images(dataidx, start, self.batch_size * self.steps)
         nx = self.nxs[dataidx]
@@ -112,8 +104,8 @@ class VOT2016_Data_Provider():
         inputdata = inputdata.reshape((self.batch_size, self.steps, nx, ny, self.channals))
         gtdata = gtdataonehot.reshape((self.batch_size, self.steps, nx, ny))
         datatuple = (inputdata, gtdata)
-        if self.cfg.use_max_size:
-            datatuple = self.subsampling(datatuple, (self.cfg.max_size_x, self.cfg.max_size_y))
+        if self.cfg['use_max_size']:
+            datatuple = self.subsampling(datatuple, (self.cfg['max_size_x'], self.cfg['max_size_y']))
         return datatuple 
 
     def get_data(self, dataidx):
@@ -209,40 +201,6 @@ class VOT2016_Data_Provider():
         while rd is None:
             rd = self.get_one_data_with_maxstep_next_batch_t(batch_size,max_step,max_size,edge)
         return rd[0], rd[1]#, self.get_mark(rd, edge, centershape)
-
-    def get_mark(self, datatuple, edge, centershape):
-        inputdata, gtdata = datatuple
-        batch_size,steps,nx,ny = gtdata.shape
-        otherlabels = gtdata[: , 1: ,   edge:edge+centershape[0]  ,  edge:edge+centershape[1]]
-        batch_size,steps,nx,ny = otherlabels.shape
-        othermark = np.zeros([batch_size,steps,nx,ny], dtype=np.float32)
-        nl = nx * ny
-        ox = 0
-        for i_b in range(batch_size):
-            for i_s in range(steps):
-                othermark[i_b][i_s] = otherlabels[i_b][i_s][:,:,1]
-                classonesum = np.sum(othermark[i_b][i_s])
-                classzerosum = np.sum(otherlabels[i_b][i_s][:,:,0])
-                if (classzerosum <= classonesum):
-                    othermark[i_b][i_s] = np.ones([nx,ny], dtype=np.float32)
-                    continue
-                om_flat = othermark[i_b][i_s].reshape(nl)
-                classzerotime = int(classonesum * self.cfg.zeromark_percentage)
-                for i in range(classzerotime):
-                    a = random.randint(0,nl-1)
-                    while om_flat[a] == 1:
-                        ox += 1
-                        a = random.randint(0,nl-1)
-                    om_flat[a] = 1
-        if self.cfg.print_marks_distribution:
-            marks_length = batch_size * steps * nx * ny
-            flat_marks = othermark.reshape(marks_length)
-            flat_labels_0 = otherlabels[:,:,:,:,0].reshape(marks_length)
-            flat_labels_1 = otherlabels[:,:,:,:,1].reshape(marks_length)
-            zeros = np.dot(flat_labels_0, flat_marks)
-            ones = np.dot(flat_labels_1, flat_marks)
-            #print('marks: 0:' + str(zeros) + ' 1:' + str(ones))
-        return othermark
 
     def __call__(self, batch_size = 1):
         return self.bagdata, self.baglabel

@@ -78,7 +78,7 @@ if __name__ == '__main__':
     scripts_path = os.path.split( os.path.realpath( sys.argv[0] ) )[0]
     train(
         pro_path = scripts_path,
-        model_path = None,
-        save_path = scripts_path + '/models/0329_1',
+        model_path = '/home/cjl/tf_runet/models/0329_1/train100',
+        save_path = scripts_path + '/models/0329_2',
         max_size = (300,300),
         dataidx = 10)

@@ -8,10 +8,10 @@ from sess import get_sess
 class Model(object):
     def __init__(self):
         self._nets = {}
-        self._base_net = self.get_net(cfg.base_net_size, cfg.base_net_size)
-        self._optimizer = self._create_optimizer(cfg.optimizer)
+        self._base_net = self.get_net(cfg['base_net_size'], cfg['base_net_size'])
+        self._optimizer = self._create_optimizer(cfg['optimizer'])
         self._base_net_minimizer = self._optimizer.minimize(self._base_net.cost)
-        if cfg.useGPU:
+        if cfg['useGPU']:
             self.sess = tf.Session()#get_sess()
         else:
             self.sess = tf.Session(config=tf.ConfigProto(device_count={'gpu':0}))
@@ -52,36 +52,36 @@ class Model(object):
             return newnet
 
     def train(self, iptdata, gtdata, get_mark_func,
-            print_datainfo = False):
+            print_datainfo=False, eval_=False):
         iptdata_shape = np.shape(iptdata)
         batch_size, steps, nx, ny, channels = iptdata_shape
-        assert cfg.channels == channels
+        assert cfg['channels'] == channels
 
         if print_datainfo:
             print('iptdata.shape:', iptdata.shape)
             print('gtdata.shape:', gtdata.shape)
 
         net = self.get_net(nx, ny)
-        if cfg.use_mark:
-            #othermarks = get_mark_func((iptdata, gtdata),net.offsetx,(net.sx,net.sy))
+        if True:
             feed_dict = {
                 net.inputs: iptdata,
                 net.labels: gtdata,
-                net.keep_prob: cfg.keep_prob
-            }
-        else:
-            feed_dict = {
-                net.inputs: iptdata,
-                net.labels: gtdata,
-                net.keep_prob: cfg.keep_prob
+                net.keep_prob: cfg['keep_prob']
             }
 
-        _opt, cost, otherlabels, predict = self.sess.run((
-            self._optimizer.minimize(net.cost),
-            net.cost,
-            net.otherlabels,
-            net.predicts), feed_dict=feed_dict)
-        
+        cost, otherlabels, predict = None, None, None
+        if eval_:
+            cost, otherlabels, predict = self.sess.run((
+                net.cost,
+                net.otherlabels,
+                net.predicts), feed_dict=feed_dict)
+        else:
+            _, cost, otherlabels, predict = self.sess.run((
+                self._optimizer.minimize(net.cost),
+                net.cost,
+                net.otherlabels,
+                net.predicts), feed_dict=feed_dict)
+
         summary = self.sess.run(tf.summary.merge_all(), feed_dict={
             self.cost:cost, 
             self.predict:predict})
@@ -90,9 +90,9 @@ class Model(object):
     def _create_optimizer(self, optimizer = "Adam"):
         with tf.variable_scope('Model._optimizer'):
             if optimizer == "RMSProp":
-                return tf.train.RMSPropOptimizer(learning_rate = cfg.learning_rate)
+                return tf.train.RMSPropOptimizer(learning_rate = cfg['learning_rate'])
             elif optimizer == "Adam":
-                return tf.train.AdamOptimizer(learning_rate=cfg.learning_rate)
+                return tf.train.AdamOptimizer(learning_rate=cfg['learning_rate'])
             else:
                 return None
  

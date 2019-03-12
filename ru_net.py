@@ -10,11 +10,11 @@ class Ru_net(object):
         self.nx = nx
         self.ny = ny
         self.name = name
-        self.channels = cfg.channels
+        self.channels = cfg['channels']
         self.sx, self.offsetx, self.sy, self.offsety = calculate_offset(nx, ny, cfg)
         
-        if cfg.regularizer:
-            regularizer = tf.contrib.layers.l2_regularizer(scale=cfg.regularizer_scale)
+        if cfg['regularizer']:
+            regularizer = tf.contrib.layers.l2_regularizer(scale=cfg['regularizer_scale'])
         else:
             regularizer = None
         with tf.variable_scope('Ru_net', reuse = tf.AUTO_REUSE,
