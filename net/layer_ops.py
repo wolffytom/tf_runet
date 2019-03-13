@@ -12,11 +12,14 @@ def fc_relu(name, x, in_channels, out_channels, w_stddev):
         b = bias_variable('b', [out_channels])
         return tf.nn.relu(tf.matmul(x, w) + b)
 
-def conv_relu(name, x, filter_size, in_channels, out_channels, keep_prob, w_stddev):
+def conv_relu(name, x, filter_size, in_channels, out_channels, keep_prob, w_stddev, relu_=True):
     with tf.variable_scope(name, initializer = tf.random_normal_initializer()):
         w = weight_variable('w', [filter_size, filter_size, in_channels, out_channels], w_stddev)
         b = bias_variable('b', [out_channels])
-        return tf.nn.relu(tf.nn.dropout(tf.nn.conv2d(x, w, strides=[1,1,1,1], padding='VALID'), keep_prob))
+        res = tf.nn.dropout(tf.nn.conv2d(x, w, strides=[1,1,1,1], padding='VALID'), keep_prob)
+        if relu_:
+            res = tf.nn.relu(res)
+        return res
 
 def dconv_relu(name, x, pool_size, in_channels, out_channels, w_stddev):
     with tf.variable_scope(name):

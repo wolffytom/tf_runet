@@ -94,6 +94,8 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
                 sx -= 2
                 sy -= 2
                 in_node = block_rnn_part('down'+str(layer)+'_crnn2', in_node, features)
+
+                in_node = tf.layers.batch_normalization(in_node)
         
                 #variables.extend((w1,b1,w2,b2))
     
@@ -135,6 +137,8 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
                 sx -= 2
                 sy -= 2
                 in_node = block_rnn_part('up'+str(layer)+'_crnn2', in_node, features//2)
+
+                in_node = tf.layers.batch_normalization(in_node)
     
                 up_h_convs[layer] = in_node
 
@@ -157,7 +161,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
         if True == INIT:
             return None
         else:
-            output_map = conv_relu('conv_out', in_node, 1, features_root, 1, 1.0, stddev)
+            output_map = conv_relu('conv_out', in_node, 1, features_root, 1, 1.0, stddev, relu_=False)
             up_h_convs["out"] = output_map
 
             output_map = tf.reshape(output_map, [batch_size, steps, sx, sy])
@@ -168,11 +172,13 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
 
     # calculate the initstates
     with tf.variable_scope('init_frame', reuse = tf.AUTO_REUSE):
-        _ru_part(True, first_frameandlabel)
+        in_node = tf.layers.batch_normalization(first_frameandlabel)
+        _ru_part(True, in_node)
 
     # process other frames
     with tf.variable_scope('other_frames', reuse = tf.AUTO_REUSE):
-        return _ru_part(False, otherframes)
+        in_node = tf.layers.batch_normalization(otherframes)
+        return _ru_part(False, in_node)
 
 def calculate_offset(nx, ny, cfg):
     sx = nx

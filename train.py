@@ -38,13 +38,13 @@ def train(model_path = None,
 
     import psutil
     training = True
-    #iptdata, gtdata = data_provider.get_a_random_batch()
+    iptdata, gtdata = data_provider.get_a_random_batch()
     while training:
         total_step += 1
         print('--------------------------------------')
         print('total_step:', total_step)
         #iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(cfg.batch_size, cfg.max_step, max_size,model.offset)
-        iptdata, gtdata = data_provider.get_a_random_batch()
+        #iptdata, gtdata = data_provider.get_a_random_batch()
         summary, cost, otherlabels, predict = model.train(iptdata, gtdata, None)
         auc = calc_auc(predict, otherlabels)
         print("cost:", cost, " auc:" , auc)
@@ -67,6 +67,6 @@ if __name__ == '__main__':
     train(
         pro_path = scripts_path,
         model_path = None,
-        save_path = scripts_path + '/models/0312_0',
+        save_path = scripts_path + '/models/0313_0',
         max_size = (300,300),
         dataidx = 10)

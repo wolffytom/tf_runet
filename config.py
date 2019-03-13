@@ -8,7 +8,7 @@ cfg = {
 'norm_input_minus' : False,
 
 # net architecture parameters
-'layers' : 3,
+'layers' : 1,
 'features_root' : 16,
 'cnn_kernel_size' : 3,
 'pool_size' : 2,
@@ -19,7 +19,7 @@ cfg = {
 'optimizer' : 'Adam',
 'base_net_size' : 100,
 'batch_size' : 1,
-'max_step' : 30,
+'max_step' : 40,
 'learning_rate' : 0.002,
 'keep_prob' : 0.8,
 'regularizer' : False,
