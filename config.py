@@ -1,7 +1,7 @@
 cfg = {
 'channels' : 3,
 'use_mark' : False,
-'use_max_size' : True,
+'use_max_size' : False,
 'max_size_x' : 300,
 'max_size_y' : 300,
 'norm_input' : True,
@@ -17,7 +17,7 @@ cfg = {
 
 # model
 'optimizer' : 'Adam',
-'base_net_size' : 100,
+'base_net_size' : 256,
 'batch_size' : 1,
 'max_step' : 4,
 'learning_rate' : 0.002,

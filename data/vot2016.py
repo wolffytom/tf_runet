@@ -75,17 +75,18 @@ class VOT2016_Data_Provider():
         self.batch_nums = len(self.batches)
         print(str(self.batch_nums) + ' batches ready')
 
-    def get_images(self, dataidx, start, steps):
-        nx = self.nxs[dataidx]
-        ny = self.nys[dataidx]
+    def get_images(self, dataidx, start, steps, jump=1):
+        nx, ny = 256,256
         inputdata = np.zeros((steps, nx, ny, self.channals), dtype=np.float32)
         gtdata = np.zeros((steps, nx, ny), dtype = np.bool)
         inputnamelist = self.inputdata[dataidx]
         gtnamelist = self.gtdata[dataidx]
         for istep in range(steps):#tqdm(range(steps)):
-            im_ipt = Image.open(inputnamelist[start + istep])
+            im_ipt = Image.open(inputnamelist[start + istep*jump])
+            im_ipt = im_ipt.resize((nx, ny))
             inputdata[istep] = np.array(im_ipt)
-            im_gt = Image.open(gtnamelist[start + istep])
+            im_gt = Image.open(gtnamelist[start + istep*jump])
+            im_gt = im_gt.resize((nx, ny))
             gtdata[istep] = np.array(im_gt)
         if self.cfg['norm_input']:
             if self.cfg['norm_input_minus']:
@@ -95,12 +96,12 @@ class VOT2016_Data_Provider():
         gtdata = gtdata.astype(np.float)
         return (inputdata, gtdata)
 
-    def get_a_random_batch(self):
-        batchidx = random.randint(0, self.batch_nums-1)
+    def get_a_random_batch(self, jump=1):
+        #batchidx = random.randint(0, self.batch_nums-1)
+        batchidx = 1
         dataidx, start = self.batches[batchidx]
-        inputdata, gtdataonehot = self.get_images(dataidx, start, self.batch_size * self.steps)
-        nx = self.nxs[dataidx]
-        ny = self.nys[dataidx]
+        inputdata, gtdataonehot = self.get_images(dataidx, start, self.batch_size * self.steps, jump=jump)
+        nsteps, nx, ny, band = inputdata.shape
         inputdata = inputdata.reshape((self.batch_size, self.steps, nx, ny, self.channals))
         gtdata = gtdataonehot.reshape((self.batch_size, self.steps, nx, ny))
         datatuple = (inputdata, gtdata)
@@ -154,7 +155,7 @@ class VOT2016_Data_Provider():
             inputdata = (inputdata[:batch_size * max_step,:,:,:]).reshape([batch_size, max_step, iptshp[1], iptshp[2],iptshp[3]])
             gtdataonehot = (gtdataonehot[:batch_size * max_step,:,:,:]).reshape([batch_size, max_step, gtshp[1], gtshp[2], gtshp[3]])
             return (inputdata, gtdataonehot)
-    
+
     def subsampling(self, datatuple, max_size):
         max_nx, max_ny = max_size
         inputdata, gtdata = datatuple
@@ -226,8 +227,19 @@ def test_maxstep():
     print(np.shape(iptdata))
     print(np.shape(gtdataonehot))
 
+def test_resize():
+    import sys
+    sys.path.append('/home/cjl/tf_runet')
+    from config import cfg
+    pro_path = '/home/cjl/tf_runet'
+    data_path = pro_path + '/data/vot2016'
+    data_provider = VOT2016_Data_Provider(data_path, cfg)
+    data_provider.random_batch_init()
+    data_provider.dataidx = 10
+    iptdata, gtdata = data_provider.get_a_random_batch(jump=20)
 
 if __name__ == '__main__':
     #printlen()
-    test_maxstep()
+    #test_maxstep()
+    test_resize()
     

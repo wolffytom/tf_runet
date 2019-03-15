@@ -38,7 +38,7 @@ def train(model_path = None,
 
     import psutil
     training = True
-    iptdata, gtdata = data_provider.get_a_random_batch()
+    iptdata, gtdata = data_provider.get_a_random_batch(jump=20)
     while training:
         total_step += 1
         print('--------------------------------------')
