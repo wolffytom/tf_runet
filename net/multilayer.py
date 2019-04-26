@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-from collections import OrderedDict
 
 import sys, os
 projdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -13,6 +12,47 @@ from net.layer_ops import fc_relu
 from net.layer_ops import max_pool
 from net.layer_ops import crop_and_concat
 from net.block_crnn import block_rnn
+from net.block_crnn import rnn
+
+def conv_fc(in_node, keep_prob, INIT, LSTM, channels, nx, ny):
+    vsname = 'conv_fc'
+    if INIT:
+        vsname = 'conv_fc_init'
+    with tf.variable_scope(vsname, reuse = tf.AUTO_REUSE, initializer = tf.orthogonal_initializer()):
+        if INIT:
+            channels = channels+1
+        batch_size = tf.shape(in_node)[0]
+        steps = tf.shape(in_node)[1]
+        in_node = tf.reshape(in_node, shape=[batch_size*steps, nx, ny, channels])
+        in_node = conv_relu('conv1', in_node, 3, channels, channels, keep_prob) #128
+        nx = nx-2
+        ny = ny-2
+        in_node = max_pool(in_node, 4) #32*32
+        nx = nx//4
+        ny = ny//4
+        in_node = tf.layers.batch_normalization(in_node)
+        in_node = conv_relu('conv4', in_node, 3, channels, channels*2, keep_prob)
+        nx = nx-2
+        ny = ny-2
+        channels *= 2
+        in_node = max_pool(in_node, 4) #8*8
+        nx = nx//4
+        ny = ny//4
+        in_node = tf.layers.batch_normalization(in_node)
+        in_node = tf.layers.flatten(in_node)
+        channels = channels*nx*ny
+        in_node = fc_relu('fc1', in_node, channels, 32)
+        output_bands = 8
+        if INIT and LSTM:
+            output_bands *= 2
+        in_node = fc_relu('fc2', in_node, 32, output_bands)
+        in_node = tf.layers.batch_normalization(in_node)
+        return in_node
+
+def expand_to_img_size(in_node, img_sizex, img_sizey):
+    in_node = tf.expand_dims(in_node, axis=1)
+    in_node = tf.expand_dims(in_node, axis=1)
+    return tf.tile(in_node, [1, img_sizex, img_sizey, 1])
 
 def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels, keep_prob, cfg):
     layers = cfg['layers']
@@ -25,21 +65,30 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
     initstates = {}
     variables = []
     convs = []
-    pools = OrderedDict()
-    deconv = OrderedDict()
-    dw_h_convs = OrderedDict()
-    up_h_convs = OrderedDict()
+    pools = {}
+    deconv = {}
+    dw_h_convs = {}
+    up_h_convs = {}
 
 
     def _ru_part(INIT, in_node):
         batch_size = tf.shape(in_node)[0]
         steps = tf.shape(in_node)[1]
 
+        fc_res = conv_fc(in_node, keep_prob, INIT, LSTM, channels, nx, ny)
+        if INIT:
+            initstates['fc'] = fc_res
+        else:
+            with tf.variable_scope('fc_lstm', reuse = tf.AUTO_REUSE, initializer = tf.orthogonal_initializer()):
+                fc_res = rnn(fc_res, batch_size, steps, 8, 8, initstates['fc'])
+            fc_res = tf.reshape(fc_res, shape=[batch_size*steps, 8])
+
         sx = nx
         sy = ny
         in_node_channels = -1
 
         def block_rnn_part_different_out_channels(name_crnn, in_part, in_part_channels, out_part_channels):
+            print ('---brnn_part')
             if LSTM is True:
                 state_channels = out_part_channels * 2
             else:
@@ -63,6 +112,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
         
         # down layers
         for layer in range(0, layers):
+            print ('---down:',layer)
             with tf.variable_scope('down_layer-'+str(layer)):
                 features = 2**layer*features_root
                 if LSTM is True and INIT is True:
@@ -85,15 +135,15 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
                 else:
                     in_node_channels = features //2
                 
-                in_node = block_rnn_part('down'+str(layer)+'_crnn0', in_node, in_node_channels)
+                ###in_node = block_rnn_part('down'+str(layer)+'_crnn0', in_node, in_node_channels)
                 in_node = conv_relu('conv1', in_node, filter_size, in_node_channels, features, keep_prob, stddev)
                 sx -= 2
                 sy -= 2
-                in_node = block_rnn_part('down'+str(layer)+'_crnn1', in_node, features)
+                ###in_node = block_rnn_part('down'+str(layer)+'_crnn1', in_node, features)
                 in_node = conv_relu('conv2', in_node, filter_size, features, features, keep_prob, stddev)
                 sx -= 2
                 sy -= 2
-                in_node = block_rnn_part('down'+str(layer)+'_crnn2', in_node, features)
+                ###in_node = block_rnn_part('down'+str(layer)+'_crnn2', in_node, features)
 
                 in_node = tf.layers.batch_normalization(in_node)
         
@@ -114,6 +164,7 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
 
         # up layers
         for layer in range(layers-2, -1, -1):
+            print ('---up:',layer)
             with tf.variable_scope('up-'+str(layer), reuse = tf.AUTO_REUSE):
                 features = 2**(layer+1)*features_root
                 if LSTM is True and INIT is True:
@@ -122,13 +173,18 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
 
                 in_node = block_rnn_part('up'+str(layer)+'_in', in_node, features)
 
-                # deconv layer
-                #h_deconv = tf.nn.relu(deconv2d(in_node, wd, pool_size) + bd)
                 in_node = dconv_relu('dconv', in_node, pool_size, features, features//2, stddev)
                 sx *= 2
                 sy *= 2
                 in_node = crop_and_concat(dw_h_convs[layer], in_node)
-                #deconv[layer] = h_deconv_concat
+
+                if layer == 0:
+                    fc_expand = expand_to_img_size(fc_res, sx, sy)
+                    features += 8
+                    if INIT and LSTM:
+                        features += 8
+                    in_node =  tf.concat([in_node, fc_expand], 3)
+
                 in_node = conv_relu('conv1', in_node, filter_size, features, features//2, keep_prob, stddev)
                 sx -= 2
                 sy -= 2
@@ -147,6 +203,13 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
             stddev = np.sqrt(2 / (filter_size**2 * features))
             if LSTM is True and INIT is True:
                 features = features * 2
+
+            fc_expand = expand_to_img_size(fc_res, sx, sy)
+            features += 16
+            if INIT and LSTM:
+                features += 16
+            in_node =  tf.concat([in_node, fc_expand], 3)
+
             in_node = conv_relu('one_layer_conv1', in_node, filter_size, features//2, features//2, keep_prob, stddev)
             sx -= 2
             sy -= 2
@@ -155,13 +218,13 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
             sy -= 2
     
         # last block_rnn
-        in_node = block_rnn_part('last_block_rnn', in_node, features//2)
+        ### in_node = block_rnn_part('last_block_rnn', in_node, features//2)
 
         # returns of this part func
         if True == INIT:
             return None
         else:
-            output_map = conv_relu('conv_out', in_node, 1, features_root, 1, 1.0, stddev, relu_=False)
+            output_map = conv_relu('conv_out', in_node, 1, in_node.shape[3], 1, 1.0, stddev, relu_=False)
             up_h_convs["out"] = output_map
 
             output_map = tf.reshape(output_map, [batch_size, steps, sx, sy])
@@ -172,12 +235,14 @@ def create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, channels,
 
     # calculate the initstates
     with tf.variable_scope('init_frame', reuse = tf.AUTO_REUSE):
-        in_node = tf.layers.batch_normalization(first_frameandlabel)
+        in_node = first_frameandlabel
+        in_node = tf.layers.batch_normalization(in_node)
         _ru_part(True, in_node)
 
     # process other frames
     with tf.variable_scope('other_frames', reuse = tf.AUTO_REUSE):
-        in_node = tf.layers.batch_normalization(otherframes)
+        in_node = otherframes
+        in_node = tf.layers.batch_normalization(in_node)
         return _ru_part(False, in_node)
 
 def calculate_offset(nx, ny, cfg):
@@ -214,4 +279,3 @@ if __name__ == '__main__':
     firstlabel = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, 1, nx, ny])
     otherframes = tf.constant(1.0, dtype = tf.float32, shape=[batch_size, othersteps, nx, ny, bands])
     res = create_ru_net_sp_init(nx, ny, firstframe, firstlabel, otherframes, bands, keep_prob, cfg)
-    print(res)

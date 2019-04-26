@@ -14,6 +14,21 @@ from PIL import Image
 from meval import calc_auc, print_step_auc
 import text_histogram
 
+def ave_weight(gtdata):
+    gtdata_flat = gtdata.reshape((-1))
+    weight = np.zeros(shape=gtdata_flat.shape)
+    ones = np.sum(gtdata)
+    length = len(gtdata_flat)
+    zeros = length-ones
+    zeros_weight = ones/zeros
+    for i in range(len(gtdata_flat)):
+        if gtdata_flat[i] > 0.5:
+            weight[i] = 1.
+        else:
+            weight[i] = zeros_weight
+    weight = weight.reshape(gtdata.shape)
+    return weight
+
 def train(model_path = None,
           save_path = '/home/cjl/tf_runet/models/20180612',
           pro_path = '/home/cjl/tf_runet',
@@ -38,14 +53,15 @@ def train(model_path = None,
 
     import psutil
     training = True
-    iptdata, gtdata = data_provider.get_a_random_batch(jump=20)
     while training:
         total_step += 1
         print('--------------------------------------')
         print('total_step:', total_step)
-        #iptdata, gtdata = data_provider.get_one_data_with_maxstep_next_batch(cfg.batch_size, cfg.max_step, max_size,model.offset)
-        #iptdata, gtdata = data_provider.get_a_random_batch()
-        summary, cost, otherlabels, predict = model.train(iptdata, gtdata, None)
+        iptdata, gtdata = data_provider.get_a_random_batch(jump=2)
+        weight = ave_weight(gtdata)
+        summary, cost, otherlabels, predict = model.train(iptdata, gtdata, weight)
+        #text_histogram.histogram(list(iptdata.astype(float).reshape((-1))))
+        #text_histogram.histogram(list(gtdata.astype(float).reshape((-1))))
         auc = calc_auc(predict, otherlabels)
         print("cost:", cost, " auc:" , auc)
         print_step_auc(predict, otherlabels)
@@ -67,6 +83,6 @@ if __name__ == '__main__':
     train(
         pro_path = scripts_path,
         model_path = None,
-        save_path = scripts_path + '/models/0313_0',
+        save_path = scripts_path + '/models/0402_all',
         max_size = (300,300),
         dataidx = 10)

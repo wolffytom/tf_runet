@@ -1,18 +1,18 @@
 import tensorflow as tf
 
 def weight_variable(name, shape, stddev=0.1):
-    return tf.get_variable(name, shape=shape)
+    return tf.get_variable(name, shape=shape, initializer=tf.orthogonal_initializer())
 
 def bias_variable(name, shape):
-    return tf.get_variable(name, shape=shape)
+    return tf.get_variable(name, shape=shape, initializer=tf.zeros_initializer())
 
-def fc_relu(name, x, in_channels, out_channels, w_stddev):
+def fc_relu(name, x, in_channels, out_channels, w_stddev=1.):
     with tf.variable_scope(name):
         w = weight_variable('w', [in_channels, out_channels], w_stddev)
         b = bias_variable('b', [out_channels])
         return tf.nn.relu(tf.matmul(x, w) + b)
 
-def conv_relu(name, x, filter_size, in_channels, out_channels, keep_prob, w_stddev, relu_=True):
+def conv_relu(name, x, filter_size, in_channels, out_channels, keep_prob, w_stddev=1., relu_=True):
     with tf.variable_scope(name, initializer = tf.random_normal_initializer()):
         w = weight_variable('w', [filter_size, filter_size, in_channels, out_channels], w_stddev)
         b = bias_variable('b', [out_channels])

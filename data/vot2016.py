@@ -11,6 +11,7 @@ class VOT2016_Data_Provider():
         pathofinput = pathofvot2016 + '/images'
         pathofgroundtruth = pathofvot2016 + '/groundtruths'
         self.datanamelist = os.listdir(pathofgroundtruth)
+        # self.datanamelist = ['nature']
         self.datanamesize = len(self.datanamelist)
         assert(self.datanamesize > 0)
         self.datalength = []
@@ -76,11 +77,13 @@ class VOT2016_Data_Provider():
         print(str(self.batch_nums) + ' batches ready')
 
     def get_images(self, dataidx, start, steps, jump=1):
-        nx, ny = 256,256
+        nx, ny = self.cfg['max_size_x'], self.cfg['max_size_y']
         inputdata = np.zeros((steps, nx, ny, self.channals), dtype=np.float32)
         gtdata = np.zeros((steps, nx, ny), dtype = np.bool)
         inputnamelist = self.inputdata[dataidx]
         gtnamelist = self.gtdata[dataidx]
+        if start + steps*jump >= len(inputnamelist):
+            return None, None
         for istep in range(steps):#tqdm(range(steps)):
             im_ipt = Image.open(inputnamelist[start + istep*jump])
             im_ipt = im_ipt.resize((nx, ny))
@@ -97,16 +100,16 @@ class VOT2016_Data_Provider():
         return (inputdata, gtdata)
 
     def get_a_random_batch(self, jump=1):
-        #batchidx = random.randint(0, self.batch_nums-1)
-        batchidx = 1
-        dataidx, start = self.batches[batchidx]
-        inputdata, gtdataonehot = self.get_images(dataidx, start, self.batch_size * self.steps, jump=jump)
+        inputdata, gtdata = None, None
+        while inputdata is None:
+            batchidx = random.randint(0, self.batch_nums-1)
+            # batchidx=0
+            dataidx, start = self.batches[batchidx]
+            inputdata, gtdataonehot = self.get_images(dataidx, start, self.batch_size * self.steps, jump=jump)
         nsteps, nx, ny, band = inputdata.shape
         inputdata = inputdata.reshape((self.batch_size, self.steps, nx, ny, self.channals))
         gtdata = gtdataonehot.reshape((self.batch_size, self.steps, nx, ny))
         datatuple = (inputdata, gtdata)
-        if self.cfg['use_max_size']:
-            datatuple = self.subsampling(datatuple, (self.cfg['max_size_x'], self.cfg['max_size_y']))
         return datatuple 
 
     def get_data(self, dataidx):

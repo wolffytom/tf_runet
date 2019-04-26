@@ -25,10 +25,13 @@ def calc_auc(pred, label):
 def print_step_auc(predict, labels):
     assert predict.shape == labels.shape
     batch_size, step, size_x, size_y = predict.shape
+    res = []
     for istep in range(step):
         stepauc = calc_auc(predict[:,istep,:,:], labels[:,istep,:,:])
+        res.append(stepauc['auc'])
         print ('step: %5d, auc: %f, pos:%f, neg:%f' % (istep, stepauc['auc'],
             stepauc['pos'], stepauc['neg']))
+    return res
 
 
 if __name__ == '__main__':

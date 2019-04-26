@@ -1,10 +1,11 @@
 import tensorflow as tf
 
-def get_cost(logits, labels, regularizer, cfg):
+def get_cost(logits, labels, weights, regularizer, cfg):
     with tf.variable_scope('cost', reuse = tf.AUTO_REUSE):
         flat_logits = tf.reshape(logits, [-1])
         flat_labels = tf.reshape(labels, [-1])
-        loss = tf.losses.log_loss(flat_labels, flat_logits)
+        flat_weights = tf.reshape(weights, [-1])
+        loss = tf.losses.log_loss(flat_labels, flat_logits, weights=flat_weights)
 
         if cfg.get('regularizer', True):
             #reg_variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)

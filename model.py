@@ -51,7 +51,7 @@ class Model(object):
             self._nets[netname] = newnet
             return newnet
 
-    def train(self, iptdata, gtdata, get_mark_func,
+    def train(self, iptdata, gtdata, weight,
             print_datainfo=False, eval_=False):
         iptdata_shape = np.shape(iptdata)
         batch_size, steps, nx, ny, channels = iptdata_shape
@@ -66,6 +66,7 @@ class Model(object):
             feed_dict = {
                 net.inputs: iptdata,
                 net.labels: gtdata,
+                net.weights: weight,
                 net.keep_prob: cfg['keep_prob']
             }
 
